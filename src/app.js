@@ -629,6 +629,55 @@ function fileToBase64(file) {
   });
 }
 
+// Gemini File API: PDF를 직접 업로드해 CIDFont 한국어 PDF도 처리
+async function uploadToGeminiFiles(file, key) {
+  const boundary = 'boundary_' + Math.random().toString(36).slice(2);
+  const metadata = JSON.stringify({ file: { display_name: file.name, mimeType: 'application/pdf' } });
+  const metaPart = `--${boundary}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`;
+  const endPart = `\r\n--${boundary}--`;
+  const metaBytes = new TextEncoder().encode(metaPart);
+  const endBytes = new TextEncoder().encode(endPart);
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const body = new Uint8Array(metaBytes.length + fileBytes.length + endBytes.length);
+  body.set(metaBytes, 0);
+  body.set(fileBytes, metaBytes.length);
+  body.set(endBytes, metaBytes.length + fileBytes.length);
+  const res = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}`, 'X-Goog-Upload-Protocol': 'multipart' },
+    body
+  });
+  if (!res.ok) {
+    let msg = '';
+    try { msg = (await res.json())?.error?.message || ''; } catch {}
+    throw new Error(`PDF 업로드 실패 ${res.status}: ${msg}`);
+  }
+  return (await res.json()).file; // { name, uri, mimeType, ... }
+}
+
+async function callGeminiWithFile(fileUri, prompt, key, model) {
+  const ver = model.startsWith('gemini-1.5') ? 'v1' : 'v1beta';
+  const res = await fetch(`https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [
+      { file_data: { mime_type: 'application/pdf', file_uri: fileUri } },
+      { text: prompt }
+    ] }] })
+  });
+  if (!res.ok) {
+    let msg = '';
+    try { msg = (await res.json())?.error?.message || ''; } catch {}
+    throw new Error(`Gemini 오류 ${res.status}: ${msg}`);
+  }
+  const data = await res.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+function deleteGeminiFile(fileName, key) {
+  fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${key}`, { method: 'DELETE' }).catch(() => {});
+}
+
 // PDF.js for text extraction (avoids 413 errors with large image-heavy PDFs)
 async function loadPdfJs() {
   if (window.pdfjsLib) return;
@@ -659,57 +708,62 @@ async function extractPdfText(file) {
 async function handlePDFUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (!getApiKey(getProvider())) {
+  const provider = getProvider();
+  if (!getApiKey(provider)) {
     toast('⚠️ AI 설정을 먼저 완료하세요 (상단 버튼)', 'danger');
     showApiKeyModal();
     return;
   }
   const status = $('#pdf-status');
   status.className = 'loading';
-
   const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-  status.innerHTML = `<span class="spinner"></span> PDF (${sizeMB}MB) 텍스트 추출 중...`;
+  const pInfo = PROVIDERS[provider];
 
   try {
-    const pdfText = await extractPdfText(file);
-    console.log('📄 PDF 추출된 텍스트 길이:', pdfText.length, '자');
-    console.log('📄 첫 500자:', pdfText.slice(0, 500));
+    let aiText;
 
-    const validationError = validateExtractedText(pdfText);
-    if (validationError) throw new Error(validationError);
-
-    const textForAI = pdfText.slice(0, 6000);
-    const pInfo = PROVIDERS[getProvider()];
-    status.innerHTML = `<span class="spinner"></span> ${pInfo.icon} ${pInfo.name} 분석 중... (${textForAI.length}자 / 한글 ✓)`;
-
-    const prompt = `Below is text from a Korean language learning textbook. Extract content as JSON.\n\nOutput ONLY this JSON (no markdown, no extra text):\n{\n  \"title\": \"단원 제목 (찾을 수 없으면 추출된 첫 한글 구절)\",\n  \"vocab\": [{\"w\":\"한글단어\",\"r\":\"ro-ma-ni-za-tion\",\"e\":\"📝\",\"m\":\"English\"}],\n  \"grammar\": [{\"p\":\"~패턴\",\"x\":\"English\",\"ex\":[{\"k\":\"예문\",\"e\":\"English\"}]}],\n  \"quiz\": [{\"q\":\"문장 ___ 빈칸\",\"o\":[\"a\",\"b\",\"c\",\"d\"],\"c\":0,\"h\":\"English hint\"}]\n}\n\nRequirements:\n- Find ALL Korean vocabulary words/phrases in the text (장소, 동사, 명사 등)\n- Identify 1-3 grammar patterns mentioned\n- Create 5-6 fill-in-the-blank quiz questions with 4 options each\n- Keep strings short to fit budget\n- Output JSON only\n\nTEXT:\n${textForAI}`;
-
-    console.log('📄 AI에 보낸 텍스트 (앞 300자):', textForAI.slice(0, 300));
-    const aiText = await callAI(prompt);
-    console.log('🤖 AI 응답 전체:', aiText);
+    if (provider === 'gemini') {
+      status.innerHTML = `<span class="spinner"></span> PDF (${sizeMB}MB) Gemini에 업로드 중...`;
+      const key = getApiKey('gemini');
+      const model = getModel('gemini');
+      const uploadedFile = await uploadToGeminiFiles(file, key);
+      status.innerHTML = `<span class="spinner"></span> ${pInfo.icon} ${pInfo.name} PDF 분석 중...`;
+      const prompt = `이것은 한국어 학습 교재 PDF입니다. 내용을 분석하여 아래 JSON 형식으로만 출력하세요 (마크다운, 코드블록 없이 순수 JSON만):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"English meaning"}],"grammar":[{"p":"~패턴","x":"English explanation","ex":[{"k":"한국어 예문","e":"English"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["선택지1","선택지2","선택지3","선택지4"],"c":0,"h":"English hint"}]}\n\n요구사항:\n- 모든 한국어 어휘 추출 (장소, 동사, 명사, 형용사 등)\n- 1~3개 문법 패턴 식별\n- 5~6개 빈칸 채우기 퀴즈 (4지선다)\n- JSON만 출력`;
+      try {
+        aiText = await callGeminiWithFile(uploadedFile.uri, prompt, key, model);
+      } finally {
+        deleteGeminiFile(uploadedFile.name, key);
+      }
+    } else {
+      status.innerHTML = `<span class="spinner"></span> PDF (${sizeMB}MB) 텍스트 추출 중...`;
+      const pdfText = await extractPdfText(file);
+      const validationError = validateExtractedText(pdfText);
+      if (validationError) throw new Error(validationError);
+      const textForAI = pdfText.slice(0, 6000);
+      status.innerHTML = `<span class="spinner"></span> ${pInfo.icon} ${pInfo.name} 분석 중... (${textForAI.length}자)`;
+      const prompt = `Below is text from a Korean language learning textbook. Extract content as JSON only (no markdown):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"English"}],"grammar":[{"p":"~패턴","x":"English","ex":[{"k":"예문","e":"English"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["a","b","c","d"],"c":0,"h":"hint"}]}\n\nTEXT:\n${textForAI}`;
+      aiText = await callAI(prompt);
+    }
 
     const parsed = parseJSONSafe(aiText);
     const parseError = validateParsedUnit(parsed);
-    if (parseError) {
-      console.error('AI 파싱 검증 실패:', parseError, aiText);
-      throw new Error(`${parseError}\n\nAI 응답을 수동으로 확인하거나 직접 입력을 사용하세요.`);
-    }
+    if (parseError) throw new Error(parseError);
 
     const newUnit = {
       id: Date.now(),
       title: parsed.title || '새 단원',
       vocabulary: (parsed.vocab || []).map(v => ({
-        word: v.w || v.word || v.korean || v.hangul || '',
-        romanization: v.r || v.romanization || v.romaji || '',
+        word: v.w || v.word || v.korean || '',
+        romanization: v.r || v.romanization || '',
         emoji: v.e || v.emoji || '📝',
-        translations: { en: v.m || v.meaning || v.english || v.translation || '' }
+        translations: { en: v.m || v.meaning || v.english || '' }
       })).filter(v => v.word),
       grammar: (parsed.grammar || []).map(g => ({
-        pattern: g.p || g.pattern || g.form || '',
-        explanation: { en: g.x || g.explanation || g.english || g.meaning || '' },
+        pattern: g.p || g.pattern || '',
+        explanation: { en: g.x || g.explanation || g.english || '' },
         examples: (g.ex || g.examples || []).map(ex => ({
-          ko: ex.k || ex.korean || ex.ko || '',
-          en: ex.e || ex.english || ex.en || ''
+          ko: ex.k || ex.korean || '',
+          en: ex.e || ex.english || ''
         }))
       })).filter(g => g.pattern),
       quizzes: (parsed.quiz || []).map(q => ({
@@ -721,15 +775,7 @@ async function handlePDFUpload(e) {
     };
 
     const totalCount = newUnit.vocabulary.length + newUnit.grammar.length + newUnit.quizzes.length;
-    console.log('✅ 추출 결과:', { 어휘: newUnit.vocabulary.length, 문법: newUnit.grammar.length, 퀴즈: newUnit.quizzes.length });
-    console.log('🔍 raw vocab[0]:', parsed.vocab?.[0], '| raw grammar[0]:', parsed.grammar?.[0], '| raw quiz[0]:', parsed.quiz?.[0]);
-
-    if (totalCount === 0) {
-      const vocabLen = (parsed.vocab || []).length;
-      const grammarLen = (parsed.grammar || []).length;
-      const quizLen = (parsed.quiz || []).length;
-      throw new Error(`추출된 콘텐츠가 없습니다. (AI 반환: vocab ${vocabLen}개, grammar ${grammarLen}개, quiz ${quizLen}개 — 모두 필터링됨)\nF12 콘솔의 "🔍 raw vocab[0]" 로그를 확인하세요.`);
-    }
+    if (totalCount === 0) throw new Error('추출된 콘텐츠가 없습니다. PDF 내용을 AI가 인식하지 못했습니다. 직접 입력을 이용하세요.');
 
     state.units.push(newUnit);
     await persistAll(true);
@@ -742,7 +788,7 @@ async function handlePDFUpload(e) {
     console.error('PDF error:', err);
     status.className = 'loading';
     const message = err.message || '알 수 없는 오류가 발생했습니다.';
-    status.innerHTML = `❌ 오류: ${message.split('\\n')[0]}<br><small style="white-space:pre-line">${message.split('\\n').slice(1).join('\\n')}</small>`;
+    status.innerHTML = `❌ 오류: ${message.split('\n')[0]}<br><small style="white-space:pre-line">${message.split('\n').slice(1).join('\n')}</small>`;
   }
 }
 function renderTeacherEdit() {
