@@ -244,8 +244,9 @@ function validateExtractedText(pdfText) {
   if (!pdfText || !pdfText.trim()) {
     return 'PDF에서 텍스트를 추출하지 못했습니다. 이미지 기반(스캔) PDF는 지원되지 않습니다. 직접 입력을 이용하세요.';
   }
-  if (pdfText.trim().length < 30) {
-    return '추출된 텍스트가 너무 짧습니다. 다른 PDF를 시도하거나 직접 입력하세요.';
+  const contentOnly = pdfText.replace(/---\s*Page\s*\d+\s*---/g, '').trim();
+  if (contentOnly.length < 20) {
+    return 'PDF에서 텍스트를 읽을 수 없습니다. 이 PDF는 한국어 전용 폰트(CIDFont) 인코딩을 사용해 브라우저에서 텍스트 추출이 불가능합니다.\n\n해결 방법: 직접 입력 탭에서 단원 내용을 붙여넣기 하거나 수동으로 입력하세요.';
   }
   return null;
 }
