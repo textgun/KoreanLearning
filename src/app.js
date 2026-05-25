@@ -136,7 +136,7 @@ async function callAI(prompt) {
 let state = {
   view: 'home',
   language: 'en',
-  studentName: '',
+  students: [],
   units: [],
   currentUnitId: null,
   currentActivity: null,
@@ -163,7 +163,7 @@ async function _doSave() {
   if (_saving) return;
   _saving = true;
   try {
-    const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language, studentName: state.studentName }});
+    const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language, students: state.students }});
     await _withRetry(() => window.storage.set(STORAGE_KEY, payload), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
   } catch (e) {
@@ -186,7 +186,7 @@ async function loadAll() {
       state.units = data.units && data.units.length > 0 ? data.units : [SAMPLE_UNIT];
       state.stats = data.stats || { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
       state.language = (data.settings && data.settings.language) || 'en';
-      state.studentName = (data.settings && data.settings.studentName) || '';
+      state.students = (data.settings && data.settings.students) || [];
       return;
     }
   } catch (e) {
@@ -463,17 +463,43 @@ function renderHome() {
   langPanel.appendChild(langGrid);
   root.appendChild(langPanel);
 
-  // Student name input
+  // Student roster
   const namePanel = el('div', { class: 'home-lang-panel', style: 'margin-top:12px' });
-  namePanel.appendChild(el('h3', {}, '🧑‍🎓 학생 이름 (Student Name)'));
-  const nameInput = el('input', {
-    type: 'text',
-    placeholder: '이름을 입력하세요 / Enter student name',
-    value: state.studentName,
-    style: 'width:100%; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; margin-top:8px; box-sizing:border-box;',
-    onInput: e => { state.studentName = e.target.value; persistAll(); }
+  namePanel.appendChild(el('h3', {}, '🧑‍🎓 학생 명단 (Students)'));
+  namePanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:10px' }, '게임 중 학생 이름이 문제와 함께 표시됩니다.'));
+
+  const studentList = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px' });
+  state.students.forEach((name, i) => {
+    const chip = el('div', { style: 'display:flex; align-items:center; gap:6px; background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' });
+    chip.appendChild(el('span', {}, name));
+    chip.appendChild(el('button', {
+      style: 'background:none; border:none; cursor:pointer; color:#7c3aed; font-size:1rem; padding:0; line-height:1',
+      onClick: () => { state.students.splice(i, 1); persistAll(); render(); }
+    }, '✕'));
+    studentList.appendChild(chip);
   });
-  namePanel.appendChild(nameInput);
+  namePanel.appendChild(studentList);
+
+  const addRow = el('div', { style: 'display:flex; gap:8px' });
+  const addInput = el('input', {
+    type: 'text',
+    placeholder: '이름 입력 / Enter name',
+    style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box;'
+  });
+  const doAdd = () => {
+    const name = addInput.value.trim();
+    if (!name || state.students.includes(name)) return;
+    state.students.push(name);
+    persistAll();
+    render();
+  };
+  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
+  addRow.appendChild(addInput);
+  addRow.appendChild(el('button', {
+    class: 'btn btn-primary',
+    onClick: doAdd
+  }, '+ 추가'));
+  namePanel.appendChild(addRow);
   root.appendChild(namePanel);
 
   // Mode selection
@@ -1156,9 +1182,14 @@ function startActivity(activity) {
 /* =========================================================
    GAMES
    ========================================================= */
+function advanceStudent() {
+  if (state.game && state.students.length > 1)
+    state.game.currentStudentIdx = (state.game.currentStudentIdx + 1) % state.students.length;
+}
+
 function initGame(activity) {
   const unit = state.units.find(u => u.id === state.currentUnitId);
-  state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0 };
+  state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0, currentStudentIdx: 0 };
   const g = state.game;
 
   if (activity === 'flashcard') {
@@ -1258,6 +1289,10 @@ function renderStudentActivity() {
   gh.appendChild(progress);
   gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
   if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `🔥 ${state.game.combo}x`));
+  if (state.students.length > 0) {
+    const name = state.students[state.game.currentStudentIdx % state.students.length];
+    gh.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${name}의 차례`));
+  }
   root.appendChild(gh);
 
   const map = {
@@ -1359,6 +1394,7 @@ function answerQuiz(selected, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast('아쉬워요', 'danger');
   }
+  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1400);
 }
 
@@ -1443,6 +1479,7 @@ function answerFillBlank(selected, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`오답: ${q.answer}`, 'danger');
   }
+  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1500);
 }
 
@@ -1513,6 +1550,7 @@ function answerOX(userAns, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(q.correct ? '⭕ 정답!' : '❌ 정답!', 'danger');
   }
+  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1300);
 }
 
@@ -1553,6 +1591,7 @@ function answerPdfQuiz(idx, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`오답: ${q.options[q.correct]}`, 'danger');
   }
+  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1700);
 }
 
