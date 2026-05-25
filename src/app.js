@@ -1015,7 +1015,7 @@ function renderStudent() {
     const grid = el('div', { class: 'unit-grid' });
     state.units.forEach((u, i) => {
       const tile = el('div', { class: 'unit-tile', onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
-      tile.innerHTML = `<div class="num">${i + 1}</div><div class="title">${u.title.replace(/^\d+(?�원|�?\s*-?\s*/, '')}</div><div class="progress">${u.vocabulary.length} ?�어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} ?�즈</div>`;
+      tile.innerHTML = `<div class="num">${i + 1}</div><div class="title">${u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')}</div><div class="progress">${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈</div>`;
       grid.appendChild(tile);
     });
     panel.appendChild(grid);
