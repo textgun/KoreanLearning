@@ -630,10 +630,9 @@ async function loadPdfJs() {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
     s.onload = resolve;
-    s.onerror = () => reject(new Error('PDF.js 로딩 ?�패'));
+    s.onerror = () => reject(new Error('PDF.js 로딩 실패'));
     document.head.appendChild(s);
   });
-    s.onerror = () => reject(new Error('PDF.js 로딩 실패'));
   // PDF.js will show "Setting up fake worker" warning and run in main thread.
   // This is slower but functionally correct for text extraction.
 }
