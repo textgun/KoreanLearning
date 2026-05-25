@@ -231,7 +231,7 @@ function toast(msg, type = '') {
 function getLangInfo() { return LANGS.find(l => l.code === state.language) || LANGS[0]; }
 function getTranslation(obj, fallback = '') {
   if (!obj) return fallback;
-  return obj[state.language] || obj.en || fallback;
+  return obj[state.language] || obj.en || obj.ko || fallback;
 }
 
 function parseJSONSafe(text) {
@@ -892,10 +892,10 @@ function renderTeacherEdit() {
     item.appendChild(el('label', {}, '패턴'));
     item.appendChild(patIn);
 
-    const expIn = el('textarea', { placeholder: '문법 ?�명 (English)' });
-    expIn.value = (g.explanation && g.explanation.en) || '';
-    expIn.oninput = () => { if (!g.explanation) g.explanation = {}; g.explanation.en = expIn.value; };
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '설명 (English)'));
+    const expIn = el('textarea', { placeholder: '문법 설명을 한국어로 입력하세요' });
+    expIn.value = (g.explanation && (g.explanation.ko || g.explanation.en)) || '';
+    expIn.oninput = () => { if (!g.explanation) g.explanation = {}; g.explanation.ko = expIn.value; };
+    item.appendChild(el('label', { style: 'margin-top:8px' }, '설명 (한국어)'));
     item.appendChild(expIn);
 
     const exTa = el('textarea', { placeholder: '한국어 | English\n예) 도서관에서 책을 읽어요 | I read at the library.' });
@@ -1030,7 +1030,7 @@ async function bulkTranslateVocab(unit) {
     const chunk = targets.slice(i, i + CHUNK);
     try {
       const list = chunk.map((v, idx) => `${idx + 1}. ${v.word}`).join('\n');
-      const prompt = `For each Korean word below, return JSON array. Each item: {"r":"romanization","e":"emoji","t":{"en":"...","zh":"...","ja":"...","th":"...","es":"...","vi":"..."}}\n\nWords:\n${list}\n\nReturn ONLY a JSON array of ${chunk.length} items in same order.`;
+      const prompt = `For each Korean word below, return JSON array. Each item: {"r":"romanization","e":"emoji","t":{"en":"...","zh":"...","ja":"...","th":"...","es":"...","vi":"...","ne":"...","hi":"..."}}\n\nWords:\n${list}\n\nReturn ONLY a JSON array of ${chunk.length} items in same order.`;
       const text = await callAI(prompt);
       const arr = JSON.parse(text.replace(/```json|```/g, '').trim());
       chunk.forEach((v, idx) => {
@@ -1038,9 +1038,8 @@ async function bulkTranslateVocab(unit) {
         if (!it) return;
         v.romanization = v.romanization || it.r;
         v.emoji = (v.emoji === '📝' || !v.emoji) ? it.e : v.emoji;
-        // Preserve user-entered translations, only fill missing
         v.translations = v.translations || {};
-        ['en','zh','ja','th','es','vi'].forEach(lang => {
+        ['en','zh','ja','th','es','vi','ne','hi'].forEach(lang => {
           if (!v.translations[lang] && it.t && it.t[lang]) v.translations[lang] = it.t[lang];
         });
       });
@@ -1054,23 +1053,24 @@ async function bulkTranslateVocab(unit) {
 }
 
 async function bulkTranslateGrammar(unit) {
-  const targets = unit.grammar.filter(g => g.explanation && g.explanation.en && (!g.explanation.zh || !g.explanation.ja));
+  const targets = unit.grammar.filter(g => g.explanation && (g.explanation.ko || g.explanation.en) && (!g.explanation.zh || !g.explanation.ne));
   if (targets.length === 0) return 0;
   const total = targets.length;
   let done = 0;
   toast(`🌐 문법 ${total}개 번역 시작...`, 'accent');
   for (const g of targets) {
     try {
-      const prompt = `Translate this Korean grammar explanation into 5 languages. Return ONLY JSON, no markdown:
-{"zh":"中文 explanation","ja":"日本語 explanation","th":"ภาษาไทย explanation","es":"Español explanation","vi":"Tiếng Việt explanation"}
+      const source = g.explanation.ko || g.explanation.en;
+      const prompt = `아래 한국어 문법 설명을 7개 언어로 번역하세요. JSON만 출력하세요 (마크다운 없이):
+{"en":"English","zh":"中文","ja":"日本語","th":"ภาษาไทย","es":"Español","vi":"Tiếng Việt","ne":"नेपाली","hi":"हिन्दी"}
 
-Pattern: ${g.pattern}
-English: ${g.explanation.en}
+패턴: ${g.pattern}
+한국어 설명: ${source}
 
-Keep translations concise and clear for Korean language learners.`;
+한국어 학습자를 위해 간결하고 명확하게 번역하세요.`;
       const text = await callAI(prompt);
       const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-      ['zh','ja','th','es','vi'].forEach(lang => {
+      ['en','zh','ja','th','es','vi','ne','hi'].forEach(lang => {
         if (!g.explanation[lang] && parsed[lang]) g.explanation[lang] = parsed[lang];
       });
       done++;
@@ -1084,7 +1084,7 @@ Keep translations concise and clear for Korean language learners.`;
 async function saveWithAutoTranslate(unit) {
   // Count items needing translation
   const vocabNeed = unit.vocabulary.filter(v => v.word && (!v.translations || !v.translations.zh));
-  const grammarNeed = unit.grammar.filter(g => g.explanation && g.explanation.en && (!g.explanation.zh));
+  const grammarNeed = unit.grammar.filter(g => g.explanation && (g.explanation.ko || g.explanation.en) && (!g.explanation.zh));
 
   if (vocabNeed.length === 0 && grammarNeed.length === 0) {
     await persistAll(true);
@@ -1171,7 +1171,7 @@ function makeActivityTile(act, unitId, cls) {
   const a = ACTIVITIES[act];
   const best = getBestScore(unitId, act);
   const tile = el('div', { class: `activity-tile ${cls}`, onClick: () => startActivity(act) });
-  tile.innerHTML = `<div class="icon">${a.icon}</div><div class="name">${a.name}</div>` + (best > 0 ? `<div class="best">최고 ${best}??/div>` : '');
+  tile.innerHTML = `<div class="icon">${a.icon}</div><div class="name">${a.name}</div>` + (best > 0 ? `<div class="best">최고 ${best}점</div>` : '');
   return tile;
 }
 
