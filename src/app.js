@@ -79,14 +79,14 @@ const ACTIVITIES = {
 const PROVIDERS = {
   anthropic: { name: 'Anthropic', icon: '🟠', models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'], keyHint: 'sk-ant-api03-...' },
   openai:    { name: 'OpenAI',    icon: '🟢', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'], keyHint: 'sk-proj-...' },
-  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'], keyHint: 'AIzaSy...' },
+  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-1.5-flash', 'gemini-1.5-pro'], keyHint: 'AIzaSy...' },
   groq:      { name: 'Groq',      icon: '⚡', models: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], keyHint: 'gsk_...' }
 };
 function getProvider() { return localStorage.getItem('ai_provider') || 'anthropic'; }
 function setProvider(p) { localStorage.setItem('ai_provider', p); }
 function getApiKey(p) { return localStorage.getItem('ai_key_' + (p || getProvider())) || ''; }
 function setApiKey(p, k) { if (k) localStorage.setItem('ai_key_' + p, k); else localStorage.removeItem('ai_key_' + p); }
-function getModel(p) { const pr = p || getProvider(); return localStorage.getItem('ai_model_' + pr) || PROVIDERS[pr].models[0]; }
+function getModel(p) { const pr = p || getProvider(); const saved = localStorage.getItem('ai_model_' + pr); return (saved && PROVIDERS[pr].models.includes(saved)) ? saved : PROVIDERS[pr].models[0]; }
 function setModel(p, m) { localStorage.setItem('ai_model_' + p, m); }
 
 async function callAI(prompt) {
