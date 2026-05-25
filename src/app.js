@@ -697,19 +697,24 @@ async function handlePDFUpload(e) {
       id: Date.now(),
       title: parsed.title || '새 단원',
       vocabulary: (parsed.vocab || []).map(v => ({
-        word: v.w || '', romanization: v.r || '', emoji: v.e || '📝',
-        translations: { en: v.m || '' }
+        word: v.w || v.word || v.korean || v.hangul || '',
+        romanization: v.r || v.romanization || v.romaji || '',
+        emoji: v.e || v.emoji || '📝',
+        translations: { en: v.m || v.meaning || v.english || v.translation || '' }
       })).filter(v => v.word),
       grammar: (parsed.grammar || []).map(g => ({
-        pattern: g.p || '',
-        explanation: { en: g.x || '' },
-        examples: (g.ex || []).map(ex => ({ ko: ex.k || '', en: ex.e || '' }))
+        pattern: g.p || g.pattern || g.form || '',
+        explanation: { en: g.x || g.explanation || g.english || g.meaning || '' },
+        examples: (g.ex || g.examples || []).map(ex => ({
+          ko: ex.k || ex.korean || ex.ko || '',
+          en: ex.e || ex.english || ex.en || ''
+        }))
       })).filter(g => g.pattern),
       quizzes: (parsed.quiz || []).map(q => ({
-        question: q.q || '',
-        options: q.o && q.o.length >= 2 ? q.o : (q.o || []),
-        correct: typeof q.c === 'number' ? q.c : 0,
-        hint: { en: q.h || '' }
+        question: q.q || q.question || '',
+        options: q.o || q.options || [],
+        correct: typeof q.c === 'number' ? q.c : (typeof q.correct === 'number' ? q.correct : 0),
+        hint: { en: q.h || q.hint || '' }
       })).filter(q => q.question && q.options && q.options.length >= 2)
     };
 
