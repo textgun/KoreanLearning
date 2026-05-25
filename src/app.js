@@ -707,17 +707,18 @@ async function handlePDFUpload(e) {
       })).filter(g => g.pattern),
       quizzes: (parsed.quiz || []).map(q => ({
         question: q.q || '',
-        options: q.o || [],
+        options: q.o && q.o.length >= 2 ? q.o : (q.o || []),
         correct: typeof q.c === 'number' ? q.c : 0,
         hint: { en: q.h || '' }
-      })).filter(q => q.question && q.options && q.options.length === 4)
+      })).filter(q => q.question && q.options && q.options.length >= 2)
     };
 
     const totalCount = newUnit.vocabulary.length + newUnit.grammar.length + newUnit.quizzes.length;
-    console.log('✅ 추출 결과:', { 어휘: newUnit.vocabulary.length, 문법: newUnit.grammar.length, 퀴즈: newUnit.quizzes.length });
+    console.log('✅ 추출 결과:', { 어휘: newUnit.vocabulary.length, 문법: newUnit.grammar.length, 퀴즈: newUnit.quizzes.length, raw: parsed });
 
     if (totalCount === 0) {
-      throw new Error('추출된 콘텐츠가 없습니다. AI가 PDF 내용을 올바르게 인식하지 못했습니다. 수동 입력을 권장합니다.');
+      const rawKeys = parsed ? Object.keys(parsed).join(', ') : '없음';
+      throw new Error(`추출된 콘텐츠가 없습니다. AI 응답 키: ${rawKeys}\n브라우저 콘솔(F12)에서 "🤖 AI 응답" 로그를 확인하세요.`);
     }
 
     state.units.push(newUnit);
