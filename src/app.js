@@ -79,7 +79,7 @@ const ACTIVITIES = {
 const PROVIDERS = {
   anthropic: { name: 'Anthropic', icon: '🟠', models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'], keyHint: 'sk-ant-api03-...' },
   openai:    { name: 'OpenAI',    icon: '🟢', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'], keyHint: 'sk-proj-...' },
-  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'], keyHint: 'AIzaSy...' },
+  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'], keyHint: 'AIzaSy...' },
   groq:      { name: 'Groq',      icon: '⚡', models: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], keyHint: 'gsk_...' }
 };
 function getProvider() { return localStorage.getItem('ai_provider') || 'anthropic'; }
@@ -120,7 +120,7 @@ async function callAI(prompt) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
-    if (!res.ok) throw new Error('AI 호출 실패: ' + res.status + (res.status === 400 ? ' (API 키/모델 확인)' : ''));
+    if (!res.ok) throw new Error('AI 호출 실패: ' + res.status + (res.status === 404 ? ' (모델명 오류 — AI 설정에서 gemini-1.5-flash 선택)' : res.status === 400 ? ' (API 키/모델 확인)' : ''));
     const data = await res.json();
     text = data.candidates[0].content.parts[0].text;
   }
