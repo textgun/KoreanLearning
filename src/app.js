@@ -159,7 +159,7 @@ async function _doSave() {
   try {
     const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language }});
     await _withRetry(() => window.storage.set(STORAGE_KEY, payload), 3);
-    if (!_storageOK) { _storageOK = true; toast('?�� ?�??복구??, 'success'); }
+    if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
   } catch (e) {
     if (_storageOK) { _storageOK = false; toast('?�️ ?�???�시 중단', 'accent'); }
     console.warn('Save failed:', e.message || e);
@@ -270,7 +270,7 @@ function addXP(amount) {
 function checkBadges(ctx) {
   const newBadges = [];
   const has = b => state.stats.badges.includes(b);
-  if (ctx.perfectScore && !has('perfect')) newBadges.push({ id: 'perfect', name: '?�� ?�벽주의?? });
+  if (ctx.perfectScore && !has('perfect')) newBadges.push({ id: 'perfect', name: '완벽주의자' });
   if (ctx.streak >= 10 && !has('combo10')) newBadges.push({ id: 'combo10', name: '?�� 10?�속' });
   if (state.stats.xp >= 500 && !has('xp500')) newBadges.push({ id: 'xp500', name: '�?XP 500' });
   if (state.stats.level >= 5 && !has('level5')) newBadges.push({ id: 'level5', name: '?? Lv.5 ?�성' });
@@ -302,7 +302,7 @@ function render() {
 
 function renderTopbar() {
   const bar = el('div', { class: 'topbar' });
-  bar.appendChild(el('div', { class: 'logo' }, '?��?�� ?�국??));
+  bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const stats = el('div', { class: 'stats-row' });
   if (state.view !== 'home') {
     stats.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '?��'));
@@ -479,7 +479,7 @@ function renderTeacher() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   const head = el('div', { class: 'row-between' });
-  head.appendChild(el('h2', {}, '?�� ?�원 관�?));
+  head.appendChild(el('h2', {}, '단원 관리'));
   head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { state.view = 'teacher-create'; render(); }}, '+ ???�원'));
   panel.appendChild(head);
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF ?�로???�는 직접 ?�력?�로 ?�원??만들�??�집?????�습?�다.'));
@@ -495,7 +495,7 @@ function renderTeacher() {
       info.appendChild(el('div', { class: 'meta' }, `?�휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · ?�즈 ${(u.quizzes || []).length}`));
       const actions = el('div', { class: 'unit-actions' });
       actions.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => editUnit(u.id) }, '?�️ ?�집'));
-      actions.appendChild(el('button', { class: 'btn btn-danger btn-sm', onClick: () => deleteUnit(u.id) }, '?���?));
+      actions.appendChild(el('button', { class: 'btn btn-danger btn-sm', onClick: () => deleteUnit(u.id) }, '🗑️'));
       item.append(info, actions);
       list.appendChild(item);
     });
@@ -505,12 +505,12 @@ function renderTeacher() {
 
   // Danger zone - reset all data
   const dangerPanel = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger)' });
-  dangerPanel.appendChild(el('h3', { style: 'color:var(--danger)' }, '?�️ ?�이??초기??));
+  dangerPanel.appendChild(el('h3', { style: 'color:var(--danger)' }, '⚠️ 데이터 초기화'));
   dangerPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '모든 ?�원, ?�수, ?�벨, 배�?�???��?�고 처음부???�시 ?�작?�니?? ?�플 ?�원(9�?- 공원?�서 ?�책?�어??�??�게 ?�니?? ?�돌�????�습?�다.'));
   dangerPanel.appendChild(el('button', { class: 'btn btn-danger', onClick: async () => {
-    const ok1 = await showConfirm('?�️ ?�이??초기??, '?�말 모든 ?�이?��? ??��?�시겠습?�까?\n\n??모든 ?�원 ??��\n???�수/?�벨/배�? 초기??n???�플 ?�원�??�음\n\n???�업?�??�돌�????�습?�다.', true);
+    const ok1 = await showConfirm('⚠️ 데이터 초기화', '정말 모든 데이터를 삭제하시겠습니까?\n\n- 모든 단원 삭제\n- 점수/레벨/배지 초기화\n- 샘플 단원으로 초기화\n\n⚠️ 되돌릴 수 없습니다.', true);
     if (!ok1) return;
-    const ok2 = await showConfirm('마�?�??�인', '??�????�인?�니??\n?�말�?처음부???�시 ?�작?�시겠습?�까?', true);
+    const ok2 = await showConfirm('마지막 확인', '정말로 처음부터 다시 시작하시겠습니까?', true);
     if (!ok2) return;
     try { await window.storage.delete(STORAGE_KEY); } catch (e) {}
     state.units = [SAMPLE_UNIT];
@@ -521,9 +521,9 @@ function renderTeacher() {
     state.currentActivity = null;
     state.game = null;
     await persistAll(true);
-    toast('??초기???�료. 처음부???�작?�니??, 'success');
+    toast('초기화 완료. 처음부터 시작합니다.', 'success');
     render();
-  }}, '?���?모든 ?�이??초기?�하�?));
+  }}, '🗑️ 모든 데이터 초기화하기'));
   root.appendChild(dangerPanel);
 
   return root;
@@ -536,7 +536,7 @@ async function deleteUnit(id) {
   if (!ok) return;
   state.units = state.units.filter(u => u.id !== id);
   await persistAll(true);
-  toast('?�원 ??��??, 'danger');
+  toast('단원 삭제됨', 'danger');
   render();
 }
 
@@ -544,7 +544,7 @@ function renderTeacherCreate() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'teacher'; render(); }}, '???�로'));
-  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '?????�원 만들�?));
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '새 단원 만들기'));
 
   const opts = el('div', { class: 'create-options' });
 
@@ -769,7 +769,7 @@ function renderTeacherEdit() {
     romanIn.oninput = () => { v.romanization = romanIn.value; };
     const meaningIn = el('input', { type: 'text', value: (v.translations && v.translations.en) || '', placeholder: 'English' });
     meaningIn.oninput = () => { if (!v.translations) v.translations = {}; v.translations.en = meaningIn.value; };
-    const delBtn = el('button', { class: 'btn btn-danger btn-sm', onClick: () => { unit.vocabulary.splice(i, 1); persistAll(); render(); }}, '?���?);
+    const delBtn = el('button', { class: 'btn btn-danger btn-sm', onClick: () => { unit.vocabulary.splice(i, 1); persistAll(); render(); }}, '🗑️');
     grid.append(emojiIn, wordIn, romanIn, meaningIn, delBtn);
     item.appendChild(grid);
     item.appendChild(el('button', { class: 'btn btn-accent btn-sm', style: 'margin-top:8px', onClick: () => autoTranslateVocab(v) }, '?�� ?�동 번역'));
@@ -853,7 +853,7 @@ function renderTeacherEdit() {
   const totalNeed = vocabNeedCount + grammarNeedCount;
   const btnLabel = totalNeed > 0
     ? `?�� ?�?�하�?+ ?�동 번역 (?�휘 ${vocabNeedCount} · 문법 ${grammarNeedCount})`
-    : '?�� ?�?�하�?;
+    : '저장하기';
   savePanel.appendChild(el('button', { class: 'btn btn-success btn-block btn-lg', onClick: async () => { await saveWithAutoTranslate(unit); }}, btnLabel));
   if (totalNeed > 0) {
     savePanel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-top:10px; font-size:0.92rem' }, '?�� ?�????비어?�는 ?�국??번역??AI�??�동 채워집니??(?�어 ??중국???�본???�국???�페?�어/베트?�어)'));
@@ -1223,7 +1223,7 @@ function renderFlashcardGame() {
   root.appendChild(area);
 
   const ctrl = el('div', { class: 'fc-controls' });
-  ctrl.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { g.flipped = !g.flipped; render(); }}, '?�� ?�집�?));
+  ctrl.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { g.flipped = !g.flipped; render(); }}, '뒤집기'));
   ctrl.appendChild(el('button', { class: 'btn btn-danger', onClick: () => { g.wrong++; g.combo = 0; nextFC(); }}, '?�� ??공�?'));
   ctrl.appendChild(el('button', { class: 'btn btn-success', onClick: () => { g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.score += 10 + g.combo * 2; addXP(5); state.stats.streak++; nextFC(); }}, '?�� ?�다'));
   root.appendChild(ctrl);
@@ -1383,7 +1383,7 @@ function renderSentenceOrderGame() {
   root.appendChild(el('p', { class: 'quiz-hint', style: 'background:#fff; padding:14px; border-radius:12px; margin-bottom:14px; font-size:1.05rem' }, '?�� ' + q.en));
 
   const target = el('div', { class: 'so-target' });
-  if (g.placed.length === 0) target.appendChild(el('span', { class: 'text-muted' }, '?�래 ?�어�??�서?��??�릭?�세??));
+  if (g.placed.length === 0) target.appendChild(el('span', { class: 'text-muted' }, '아래 단어를 순서대로 클릭하세요'));
   g.placed.forEach((p, i) => target.appendChild(el('div', { class: 'so-word', onClick: () => { g.placed.splice(i, 1); render(); }}, p.w)));
   root.appendChild(target);
 
@@ -1423,8 +1423,8 @@ function renderOXGame() {
   box.innerHTML = `<div>${q.sentence}</div><div class="text-muted" style="margin-top:10px; font-size:0.95rem">?�도: ${q.en}</div>`;
   root.appendChild(box);
   const btns = el('div', { class: 'ox-buttons' });
-  btns.appendChild(el('button', { class: 'ox-btn o', onClick: () => answerOX(true, q) }, '�?));
-  btns.appendChild(el('button', { class: 'ox-btn x', onClick: () => answerOX(false, q) }, '??));
+  btns.appendChild(el('button', { class: 'ox-btn o', onClick: () => answerOX(true, q) }, '⭕'));
+  btns.appendChild(el('button', { class: 'ox-btn x', onClick: () => answerOX(false, q) }, '❌'));
   root.appendChild(btns);
   return root;
 }
@@ -1508,11 +1508,11 @@ function renderStudentResult() {
   card.innerHTML = `<div class="icon">${icon}</div><div class="title">${title}</div><div class="text-muted">${ACTIVITIES[g.activity].name} ?�료</div>`;
 
   const stars = el('div', { class: 'stars' });
-  for (let i = 0; i < 3; i++) stars.appendChild(el('span', { class: i < g.finalStars ? 'filled' : 'empty' }, '??));
+  for (let i = 0; i < 3; i++) stars.appendChild(el('span', { class: i < g.finalStars ? 'filled' : 'empty' }, '⭐'));
   card.appendChild(stars);
 
   const stats = el('div', { class: 'result-stats' });
-  [['?�수', g.score], ['?�답�?, g.finalPercent + '%'], ['최고 콤보', g.maxCombo + 'x']].forEach(([l, v]) => {
+  [['점수', g.score], ['정답률', g.finalPercent + '%'], ['최고 콤보', g.maxCombo + 'x']].forEach(([l, v]) => {
     const s = el('div', { class: 'result-stat' });
     s.innerHTML = `<div class="val">${v}</div><div class="lbl">${l}</div>`;
     stats.appendChild(s);
