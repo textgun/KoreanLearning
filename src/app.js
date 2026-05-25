@@ -161,7 +161,7 @@ async function _doSave() {
     await _withRetry(() => window.storage.set(STORAGE_KEY, payload), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
   } catch (e) {
-    if (_storageOK) { _storageOK = false; toast('?�️ ?�???�시 중단', 'accent'); }
+    if (_storageOK) { _storageOK = false; toast('⚠️ 자동저장 일시 중단', 'accent'); }
     console.warn('Save failed:', e.message || e);
   } finally { _saving = false; }
 }
@@ -185,7 +185,7 @@ async function loadAll() {
   } catch (e) {
     console.warn('Storage unavailable, using defaults');
     _storageOK = false;
-    setTimeout(() => toast('?�️ ?�?�소 ?�시 ?�류 - 메모리에�??�?�됩?�다', 'accent'), 800);
+    setTimeout(() => toast('⚠️ 저장소 접근 오류 - 메모리에 임시 저장됩니다', 'accent'), 800);
   }
   if (!state.units || state.units.length === 0) state.units = [SAMPLE_UNIT];
   if (!state.stats) state.stats = { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
@@ -261,16 +261,16 @@ function addXP(amount) {
   const newLevel = Math.floor(state.stats.xp / 100) + 1;
   if (newLevel > state.stats.level) {
     state.stats.level = newLevel;
-    toast(`?�� ?�벨 UP! Level ${newLevel}`, 'accent');
+    toast(`🎉 레벨 UP! Level ${newLevel}`, 'accent');
   }
 }
 function checkBadges(ctx) {
   const newBadges = [];
   const has = b => state.stats.badges.includes(b);
   if (ctx.perfectScore && !has('perfect')) newBadges.push({ id: 'perfect', name: '완벽주의자' });
-  if (ctx.streak >= 10 && !has('combo10')) newBadges.push({ id: 'combo10', name: '?�� 10?�속' });
-  if (state.stats.xp >= 500 && !has('xp500')) newBadges.push({ id: 'xp500', name: '�?XP 500' });
-  if (state.stats.level >= 5 && !has('level5')) newBadges.push({ id: 'level5', name: '?? Lv.5 ?�성' });
+  if (ctx.streak >= 10 && !has('combo10')) newBadges.push({ id: 'combo10', name: '🔥 10연속' });
+  if (state.stats.xp >= 500 && !has('xp500')) newBadges.push({ id: 'xp500', name: '⭐ XP 500' });
+  if (state.stats.level >= 5 && !has('level5')) newBadges.push({ id: 'level5', name: '🏆 Lv.5 달성' });
   newBadges.forEach(b => state.stats.badges.push(b.id));
   return newBadges;
 }
@@ -302,7 +302,7 @@ function renderTopbar() {
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const stats = el('div', { class: 'stats-row' });
   if (state.view !== 'home') {
-    stats.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '?��'));
+    stats.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '🏠'));
   }
   const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
   stats.appendChild(el('button', {
@@ -312,9 +312,9 @@ function renderTopbar() {
   }, _pk ? `${_pi.icon} ${_pi.name} ✓` : '⚠️ AI 설정'));
   const lang = getLangInfo();
   stats.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
-  stats.appendChild(el('div', { class: 'stat-chip level' }, `?? Lv.${state.stats.level}`));
-  stats.appendChild(el('div', { class: 'stat-chip xp' }, `�?${state.stats.xp}`));
-  if (state.stats.streak > 0) stats.appendChild(el('div', { class: 'stat-chip streak' }, `?�� ${state.stats.streak}`));
+  stats.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
+  stats.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
+  if (state.stats.streak > 0) stats.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
   bar.appendChild(stats);
   return bar;
 }
@@ -413,7 +413,7 @@ function showLangModal() {
   root.innerHTML = '';
   const backdrop = el('div', { class: 'modal-backdrop', onClick: (e) => { if (e.target === backdrop) root.innerHTML = ''; }});
   const modal = el('div', { class: 'modal' });
-  modal.appendChild(el('h3', { style: 'margin-bottom:14px' }, '?�� ?�어 ?�택 (Choose Language)'));
+  modal.appendChild(el('h3', { style: 'margin-bottom:14px' }, '🌍 언어 선택 (Choose Language)'));
   const grid = el('div', { class: 'lang-grid' });
   LANGS.forEach(l => {
     const tile = el('div', {
@@ -435,14 +435,14 @@ function renderHome() {
   const root = el('div');
 
   const hero = el('div', { class: 'home-hero' });
-  hero.appendChild(el('h1', {}, '?�국???�습 ?�구'));
+  hero.appendChild(el('h1', {}, '한국어 학습 도구'));
   hero.appendChild(el('p', {}, 'Korean Learning App'));
   root.appendChild(hero);
 
   // Language selector
   const langPanel = el('div', { class: 'home-lang-panel' });
-  langPanel.appendChild(el('h3', {}, '?�� ?�생 ?�어 ?�택 (Student\'s Language)'));
-  langPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '?�업 ?�작 ???�생??�?��??맞는 ?�어�??�택?�세??'));
+  langPanel.appendChild(el('h3', {}, '🌍 학생 언어 선택 (Student\'s Language)'));
+  langPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '수업 시작 전 학생이 사용하는 언어를 선택하세요.'));
   const langGrid = el('div', { class: 'lang-grid' });
   LANGS.forEach(l => {
     const tile = el('div', {
@@ -477,21 +477,21 @@ function renderTeacher() {
   const panel = el('div', { class: 'panel' });
   const head = el('div', { class: 'row-between' });
   head.appendChild(el('h2', {}, '단원 관리'));
-  head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { state.view = 'teacher-create'; render(); }}, '+ ???�원'));
+  head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { state.view = 'teacher-create'; render(); }}, '+ 새 단원'));
   panel.appendChild(head);
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF ?�로???�는 직접 ?�력?�로 ?�원??만들�??�집?????�습?�다.'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF 업로드 또는 직접 입력으로 단원을 만들고 편집할 수 있습니다.'));
 
   if (state.units.length === 0) {
-    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '?�직 ?�원???�습?�다.'));
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
     const list = el('div', { class: 'unit-list' });
     state.units.forEach(u => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
       info.appendChild(el('h4', {}, u.title));
-      info.appendChild(el('div', { class: 'meta' }, `?�휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · ?�즈 ${(u.quizzes || []).length}`));
+      info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
       const actions = el('div', { class: 'unit-actions' });
-      actions.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => editUnit(u.id) }, '?�️ ?�집'));
+      actions.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => editUnit(u.id) }, '✏️ 편집'));
       actions.appendChild(el('button', { class: 'btn btn-danger btn-sm', onClick: () => deleteUnit(u.id) }, '🗑️'));
       item.append(info, actions);
       list.appendChild(item);
@@ -503,7 +503,7 @@ function renderTeacher() {
   // Danger zone - reset all data
   const dangerPanel = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger)' });
   dangerPanel.appendChild(el('h3', { style: 'color:var(--danger)' }, '⚠️ 데이터 초기화'));
-  dangerPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '모든 ?�원, ?�수, ?�벨, 배�?�???��?�고 처음부???�시 ?�작?�니?? ?�플 ?�원(9�?- 공원?�서 ?�책?�어??�??�게 ?�니?? ?�돌�????�습?�다.'));
+  dangerPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '모든 단원, 점수, 레벨, 배지를 삭제하고 처음부터 다시 시작합니다. 샘플 단원으로 초기화되며 되돌릴 수 없습니다.'));
   dangerPanel.appendChild(el('button', { class: 'btn btn-danger', onClick: async () => {
     const ok1 = await showConfirm('⚠️ 데이터 초기화', '정말 모든 데이터를 삭제하시겠습니까?\n\n- 모든 단원 삭제\n- 점수/레벨/배지 초기화\n- 샘플 단원으로 초기화\n\n⚠️ 되돌릴 수 없습니다.', true);
     if (!ok1) return;
@@ -529,7 +529,7 @@ function renderTeacher() {
 function editUnit(id) { state.currentUnitId = id; state.view = 'teacher-edit'; render(); }
 async function deleteUnit(id) {
   const unit = state.units.find(u => u.id === id);
-  const ok = await showConfirm('?�원 ??��', `"${unit ? unit.title : '???�원'}"??�? ?�말 ??��?�시겠습?�까?\n\n?�함??모든 ?�휘, 문법, ?�즈가 ?�께 ??��?�니??`, true);
+  const ok = await showConfirm('단원 삭제', `"${unit ? unit.title : '이 단원'}"을 정말 삭제하시겠습니까?\n\n포함된 모든 어휘, 문법, 퀴즈가 함께 삭제됩니다`, true);
   if (!ok) return;
   state.units = state.units.filter(u => u.id !== id);
   await persistAll(true);
@@ -540,7 +540,7 @@ async function deleteUnit(id) {
 function renderTeacherCreate() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'teacher'; render(); }}, '???�로'));
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'teacher'; render(); }}, '← 뒤로'));
   panel.appendChild(el('h2', { style: 'margin-top:10px' }, '새 단원 만들기'));
 
   const opts = el('div', { class: 'create-options' });
@@ -552,7 +552,7 @@ function renderTeacherCreate() {
   pdfOpt.appendChild(fileInput);
 
   const manualOpt = el('div', { class: 'option-card', onClick: createBlankUnit });
-  manualOpt.innerHTML = '<div class="icon">?�️</div><div class="label">직접 ?�력</div><div class="desc">�??�원??만들??직접 ?�력</div>';
+  manualOpt.innerHTML = '<div class="icon">✏️</div><div class="label">직접 입력</div><div class="desc">새 단원을 만들어 직접 입력</div>';
 
   opts.append(pdfOpt, manualOpt);
   panel.appendChild(opts);
@@ -575,7 +575,7 @@ function showConfirm(title, message, danger = false) {
     modal.appendChild(msg);
     const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });
     btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { root.innerHTML = ''; resolve(false); }}, '취소'));
-    btns.appendChild(el('button', { class: danger ? 'btn btn-danger' : 'btn btn-primary', onClick: () => { root.innerHTML = ''; resolve(true); }}, danger ? '??��' : '?�인'));
+    btns.appendChild(el('button', { class: danger ? 'btn btn-danger' : 'btn btn-primary', onClick: () => { root.innerHTML = ''; resolve(true); }}, danger ? '삭제' : '확인'));
     modal.appendChild(btns);
     backdrop.appendChild(modal);
     root.appendChild(backdrop);
@@ -594,7 +594,7 @@ function showPrompt(title, placeholder = '') {
     modal.appendChild(input);
     const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });
     btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { root.innerHTML = ''; resolve(null); }}, '취소'));
-    const okBtn = el('button', { class: 'btn btn-primary', onClick: () => { const v = input.value.trim(); root.innerHTML = ''; resolve(v || null); }}, '?�인');
+    const okBtn = el('button', { class: 'btn btn-primary', onClick: () => { const v = input.value.trim(); root.innerHTML = ''; resolve(v || null); }}, '확인');
     btns.appendChild(okBtn);
     modal.appendChild(btns);
     backdrop.appendChild(modal);
@@ -633,7 +633,7 @@ async function loadPdfJs() {
     s.onerror = () => reject(new Error('PDF.js 로딩 ?�패'));
     document.head.appendChild(s);
   });
-  // Sandboxed iframe blocks external workers, so we don't set workerSrc.
+    s.onerror = () => reject(new Error('PDF.js 로딩 실패'));
   // PDF.js will show "Setting up fake worker" warning and run in main thread.
   // This is slower but functionally correct for text extraction.
 }
@@ -738,29 +738,29 @@ function renderTeacherEdit() {
 
   // Header
   const headPanel = el('div', { class: 'panel' });
-  headPanel.appendChild(el('button', { class: 'back-btn', onClick: async () => { await persistAll(true); state.view = 'teacher'; render(); }}, '???�원 목록'));
+  headPanel.appendChild(el('button', { class: 'back-btn', onClick: async () => { await persistAll(true); state.view = 'teacher'; render(); }}, '← 단원 목록'));
   const titleInput = el('input', { type: 'text', value: unit.title, style: 'margin-top:10px; font-size:1.2rem; font-weight:700' });
   titleInput.oninput = () => { unit.title = titleInput.value; };
-  headPanel.appendChild(el('label', { style: 'margin-top:10px' }, '?�원 ?�목'));
+  headPanel.appendChild(el('label', { style: 'margin-top:10px' }, '단원 제목'));
   headPanel.appendChild(titleInput);
   root.appendChild(headPanel);
 
   // Vocabulary
   const vocabPanel = el('div', { class: 'panel' });
-  vocabPanel.appendChild(el('h2', {}, `?�� ?�휘 (${unit.vocabulary.length})`));
+  vocabPanel.appendChild(el('h2', {}, `📚 어휘 (${unit.vocabulary.length})`));
 
   const missingTrans = unit.vocabulary.filter(v => !v.translations || !v.translations.zh || !v.translations.ja).length;
   if (unit.vocabulary.length > 0 && missingTrans > 0) {
     vocabPanel.appendChild(el('button', { class: 'btn btn-accent btn-block', style: 'margin-bottom:12px', onClick: () => bulkTranslateVocab(unit) },
-      `?�� 모든 ?�어 ?�동 번역 (${missingTrans}�?· 6�??�어)`));
+      `🌐 모든 단어 자동 번역 (${missingTrans}개 · 6개 언어)`));
   }
 
   unit.vocabulary.forEach((v, i) => {
     const item = el('div', { class: 'vocab-edit-item' });
     const grid = el('div', { class: 'vocab-edit-grid' });
-    const emojiIn = el('input', { type: 'text', value: v.emoji || '', placeholder: '?��' });
+    const emojiIn = el('input', { type: 'text', value: v.emoji || '', placeholder: '😀' });
     emojiIn.oninput = () => { v.emoji = emojiIn.value; };
-    const wordIn = el('input', { type: 'text', value: v.word, placeholder: '?��?' });
+    const wordIn = el('input', { type: 'text', value: v.word, placeholder: '한국어' });
     wordIn.oninput = () => { v.word = wordIn.value; };
     const romanIn = el('input', { type: 'text', value: v.romanization || '', placeholder: '발음' });
     romanIn.oninput = () => { v.romanization = romanIn.value; };
@@ -769,30 +769,30 @@ function renderTeacherEdit() {
     const delBtn = el('button', { class: 'btn btn-danger btn-sm', onClick: () => { unit.vocabulary.splice(i, 1); persistAll(); render(); }}, '🗑️');
     grid.append(emojiIn, wordIn, romanIn, meaningIn, delBtn);
     item.appendChild(grid);
-    item.appendChild(el('button', { class: 'btn btn-accent btn-sm', style: 'margin-top:8px', onClick: () => autoTranslateVocab(v) }, '?�� ?�동 번역'));
+    item.appendChild(el('button', { class: 'btn btn-accent btn-sm', style: 'margin-top:8px', onClick: () => autoTranslateVocab(v) }, '🌐 자동 번역'));
     vocabPanel.appendChild(item);
   });
-  vocabPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addVocab(unit) }, '???�어 추�??�기'));
+  vocabPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addVocab(unit) }, '+ 단어 추가하기'));
   root.appendChild(vocabPanel);
 
   // Grammar
   const grPanel = el('div', { class: 'panel' });
-  grPanel.appendChild(el('h2', {}, `?�� 문법 (${unit.grammar.length})`));
+  grPanel.appendChild(el('h2', {}, `📖 문법 (${unit.grammar.length})`));
 
   unit.grammar.forEach((g, i) => {
     const item = el('div', { class: 'grammar-edit-item' });
-    const patIn = el('input', { type: 'text', value: g.pattern, placeholder: '?? ~?�서' });
+    const patIn = el('input', { type: 'text', value: g.pattern, placeholder: '예) ~에서' });
     patIn.oninput = () => { g.pattern = patIn.value; };
-    item.appendChild(el('label', {}, '?�턴'));
+    item.appendChild(el('label', {}, '패턴'));
     item.appendChild(patIn);
 
     const expIn = el('textarea', { placeholder: '문법 ?�명 (English)' });
     expIn.value = (g.explanation && g.explanation.en) || '';
     expIn.oninput = () => { if (!g.explanation) g.explanation = {}; g.explanation.en = expIn.value; };
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '?�명 (English)'));
+    item.appendChild(el('label', { style: 'margin-top:8px' }, '설명 (English)'));
     item.appendChild(expIn);
 
-    const exTa = el('textarea', { placeholder: '?�국??| English\n?? ?�서관?�서 책을 ?�어?? | I read at the library.' });
+    const exTa = el('textarea', { placeholder: '한국어 | English\n예) 도서관에서 책을 읽어요 | I read at the library.' });
     exTa.value = (g.examples || []).map(e => `${e.ko} | ${e.en}`).join('\n');
     exTa.oninput = () => {
       g.examples = exTa.value.split('\n').filter(l => l.trim()).map(l => {
@@ -800,27 +800,27 @@ function renderTeacherEdit() {
         return { ko, en };
       });
     };
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '?�문 (??줄에 ?�나)'));
+    item.appendChild(el('label', { style: 'margin-top:8px' }, '예문 (한 줄에 하나)'));
     item.appendChild(exTa);
-    item.appendChild(el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px', onClick: () => { unit.grammar.splice(i, 1); persistAll(); render(); }}, '?���???��'));
+    item.appendChild(el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px', onClick: () => { unit.grammar.splice(i, 1); persistAll(); render(); }}, '🗑️ 삭제'));
     grPanel.appendChild(item);
   });
-  grPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addGrammar(unit) }, '??문법 추�??�기'));
+  grPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addGrammar(unit) }, '+ 문법 추가하기'));
   root.appendChild(grPanel);
 
   // Quizzes
   const qzPanel = el('div', { class: 'panel' });
-  qzPanel.appendChild(el('h2', {}, `?�� PDF ?�즈 (${unit.quizzes.length})`));
-  qzPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '?�습지?�서 ?�동 추출??객�???문제?�니?? ___ ?�리???�어�??�을 4�?보기?�서 ?�택?�는 ?�식.'));
+  qzPanel.appendChild(el('h2', {}, `📝 PDF 퀴즈 (${unit.quizzes.length})`));
+  qzPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '학습지에서 자동 추출된 객관식 문제입니다. ___ 자리에 들어갈 단어를 4개 보기에서 선택하는 방식.'));
 
   unit.quizzes.forEach((q, i) => {
     const item = el('div', { class: 'quiz-edit-item' });
-    item.appendChild(el('label', {}, `Q${i + 1} 문제 (___ �?빈칸?�로 ?�용)`));
-    const qIn = el('input', { type: 'text', value: q.question, placeholder: '?? ?�서관 ___ 책을 ?�어??' });
+    item.appendChild(el('label', {}, `Q${i + 1} 문제 (___ 을 빈칸으로 사용)`));
+    const qIn = el('input', { type: 'text', value: q.question, placeholder: '예) 도서관 ___ 책을 읽어요' });
     qIn.oninput = () => { q.question = qIn.value; };
     item.appendChild(qIn);
 
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '4�?보기 (?�답 ?�디???�택)'));
+    item.appendChild(el('label', { style: 'margin-top:8px' }, '4개 보기 (정답 위치를 선택)'));
     (q.options || ['', '', '', '']).forEach((opt, oi) => {
       const row = el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom:6px' });
       const radio = el('input', { type: 'radio', name: `qc_${i}`, style: 'flex:0' });
@@ -834,13 +834,13 @@ function renderTeacherEdit() {
 
     const hintIn = el('input', { type: 'text', value: (q.hint && q.hint.en) || '', placeholder: 'English hint' });
     hintIn.oninput = () => { if (!q.hint) q.hint = {}; q.hint.en = hintIn.value; };
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '?�트 (English)'));
+    item.appendChild(el('label', { style: 'margin-top:8px' }, '힌트 (English)'));
     item.appendChild(hintIn);
 
-    item.appendChild(el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px', onClick: () => { unit.quizzes.splice(i, 1); persistAll(); render(); }}, '?���???��'));
+    item.appendChild(el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px', onClick: () => { unit.quizzes.splice(i, 1); persistAll(); render(); }}, '🗑️ 삭제'));
     qzPanel.appendChild(item);
   });
-  qzPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addQuiz(unit) }, '???�즈 추�??�기'));
+  qzPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addQuiz(unit) }, '+ 퀴즈 추가하기'));
   root.appendChild(qzPanel);
 
   // Save
@@ -849,11 +849,11 @@ function renderTeacherEdit() {
   const grammarNeedCount = unit.grammar.filter(g => g.explanation && g.explanation.en && (!g.explanation.zh)).length;
   const totalNeed = vocabNeedCount + grammarNeedCount;
   const btnLabel = totalNeed > 0
-    ? `?�� ?�?�하�?+ ?�동 번역 (?�휘 ${vocabNeedCount} · 문법 ${grammarNeedCount})`
+    ? `💾 저장하기 + 자동 번역 (어휘 ${vocabNeedCount} · 문법 ${grammarNeedCount})`
     : '저장하기';
   savePanel.appendChild(el('button', { class: 'btn btn-success btn-block btn-lg', onClick: async () => { await saveWithAutoTranslate(unit); }}, btnLabel));
   if (totalNeed > 0) {
-    savePanel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-top:10px; font-size:0.92rem' }, '?�� ?�????비어?�는 ?�국??번역??AI�??�동 채워집니??(?�어 ??중국???�본???�국???�페?�어/베트?�어)'));
+    savePanel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-top:10px; font-size:0.92rem' }, '🌐 저장 시 비어있는 번역은 AI로 자동 채워집니다 (영어·중국어·일본어·태국어·스페인어·베트남어)'));
   }
   root.appendChild(savePanel);
 
@@ -861,9 +861,9 @@ function renderTeacherEdit() {
 }
 
 function addVocab(unit) {
-  unit.vocabulary.push({ word: '', romanization: '', emoji: '?�️', translations: {} });
+  unit.vocabulary.push({ word: '', romanization: '', emoji: '📝', translations: {} });
   render();
-  scrollToNewItem('.vocab-edit-item', 'input[placeholder="?��?"]');
+  scrollToNewItem('.vocab-edit-item', 'input[placeholder="한국어"]');
 }
 
 function addGrammar(unit) {
@@ -898,8 +898,8 @@ function scrollToNewItem(itemSelector, focusSelector) {
 }
 
 async function autoTranslateVocab(v) {
-  if (!v.word) { toast('먼�? ?��? ?�어 ?�력', 'danger'); return; }
-  toast('?�� 번역 �?..', 'accent');
+  if (!v.word) { toast('먼저 한국어 단어 입력', 'danger'); return; }
+  toast('🌐 번역 중..', 'accent');
   try {
     const prompt = `For the Korean word "${v.word}", return ONLY JSON: {"romanization":"...","emoji":"X","translations":{"en":"...","zh":"...","ja":"...","th":"...","es":"...","vi":"..."}} - romanization with hyphens, ONE emoji.`;
     const text = await callAI(prompt);
@@ -908,17 +908,17 @@ async function autoTranslateVocab(v) {
     v.emoji = parsed.emoji;
     v.translations = parsed.translations;
     await persistAll();
-    toast('???�료', 'success');
+    toast('✅ 완료', 'success');
     render();
-  } catch (e) { console.error(e); toast('번역 ?�패', 'danger'); }
+  } catch (e) { console.error(e); toast('번역 실패', 'danger'); }
 }
 
 async function bulkTranslateVocab(unit) {
   const targets = unit.vocabulary.filter(v => v.word && (!v.translations || !v.translations.zh));
-  if (targets.length === 0) { toast('번역???�어가 ?�습?�다', 'accent'); return; }
+  if (targets.length === 0) { toast('번역할 단어가 없습니다', 'accent'); return; }
   const total = targets.length;
   let done = 0;
-  toast(`?�� ${total}�?번역 ?�작...`, 'accent');
+  toast(`🌐 ${total}개 번역 시작...`, 'accent');
   const CHUNK = 5;
   for (let i = 0; i < targets.length; i += CHUNK) {
     const chunk = targets.slice(i, i + CHUNK);
@@ -931,7 +931,7 @@ async function bulkTranslateVocab(unit) {
         const it = arr[idx];
         if (!it) return;
         v.romanization = v.romanization || it.r;
-        v.emoji = (v.emoji === '?��' || v.emoji === '?�️' || !v.emoji) ? it.e : v.emoji;
+        v.emoji = (v.emoji === '📝' || !v.emoji) ? it.e : v.emoji;
         // Preserve user-entered translations, only fill missing
         v.translations = v.translations || {};
         ['en','zh','ja','th','es','vi'].forEach(lang => {
@@ -939,12 +939,12 @@ async function bulkTranslateVocab(unit) {
         });
       });
       done += chunk.length;
-      toast(`?�� ?�휘 ${done}/${total}`, 'accent');
+      toast(`🌐 어휘 ${done}/${total}`, 'accent');
       await persistAll();
       render();
     } catch (err) { console.error(err); }
   }
-  toast(`???�휘 번역 ?�료 (${done}/${total})`, 'success');
+  toast(`✅ 어휘 번역 완료 (${done}/${total})`, 'success');
 }
 
 async function bulkTranslateGrammar(unit) {
@@ -952,11 +952,11 @@ async function bulkTranslateGrammar(unit) {
   if (targets.length === 0) return 0;
   const total = targets.length;
   let done = 0;
-  toast(`?�� 문법 ${total}�?번역 ?�작...`, 'accent');
+  toast(`🌐 문법 ${total}개 번역 시작...`, 'accent');
   for (const g of targets) {
     try {
       const prompt = `Translate this Korean grammar explanation into 5 languages. Return ONLY JSON, no markdown:
-{"zh":"�?�� explanation","ja":"?�本�?,"th":"ภาษาไท�?,"es":"Español","vi":"Tiếng Việt"}
+{"zh":"中文 explanation","ja":"日本語 explanation","th":"ภาษาไทย explanation","es":"Español explanation","vi":"Tiếng Việt explanation"}
 
 Pattern: ${g.pattern}
 English: ${g.explanation.en}
@@ -968,7 +968,7 @@ Keep translations concise and clear for Korean language learners.`;
         if (!g.explanation[lang] && parsed[lang]) g.explanation[lang] = parsed[lang];
       });
       done++;
-      toast(`?�� 문법 ${done}/${total}`, 'accent');
+      toast(`🌐 문법 ${done}/${total}`, 'accent');
       await persistAll();
     } catch (e) { console.warn('Grammar translation failed:', e); }
   }
@@ -982,17 +982,17 @@ async function saveWithAutoTranslate(unit) {
 
   if (vocabNeed.length === 0 && grammarNeed.length === 0) {
     await persistAll(true);
-    toast('???�???�료', 'success');
+    toast('✅ 저장 완료', 'success');
     return;
   }
 
-  toast(`?�� ?�??+ ?�동 번역 ?�작... (?�휘 ${vocabNeed.length}, 문법 ${grammarNeed.length})`, 'accent');
+  toast(`🌐 저장 + 자동 번역 시작... (어휘 ${vocabNeed.length}, 문법 ${grammarNeed.length})`, 'accent');
 
   if (vocabNeed.length > 0) await bulkTranslateVocab(unit);
   if (grammarNeed.length > 0) await bulkTranslateGrammar(unit);
 
   await persistAll(true);
-  toast('???�??+ ?�동 번역 ?�료!', 'success');
+  toast('✅ 저장 + 자동 번역 완료!', 'success');
   render();
 }
 
@@ -1002,12 +1002,12 @@ async function saveWithAutoTranslate(unit) {
 function renderStudent() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
-  panel.appendChild(el('h2', {}, '?�� ?�원 ?�택 (Choose a Unit)'));
+  panel.appendChild(el('h2', {}, '📚 단원 선택 (Choose a Unit)'));
   const lang = getLangInfo();
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, `?�재 ?�어: ${lang.flag} ${lang.name} · 변경하?�면 ?�단 ${lang.code.toUpperCase()} 버튼 ?�릭`));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, `현재 언어: ${lang.flag} ${lang.name} · 변경하려면 상단 ${lang.code.toUpperCase()} 버튼 클릭`));
 
   if (state.units.length === 0) {
-    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '?�직 ?�원???�습?�다. 교사 모드?�서 만들?�주?�요.'));
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
     const grid = el('div', { class: 'unit-grid' });
     state.units.forEach((u, i) => {
@@ -1027,12 +1027,12 @@ function renderStudentUnit() {
   if (!unit.quizzes) unit.quizzes = [];
   const root = el('div');
   const panel = el('div', { class: 'panel' });
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'student'; render(); }}, '???�원 목록'));
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'student'; render(); }}, '← 단원 목록'));
   panel.appendChild(el('h2', { style: 'margin-top:10px' }, unit.title));
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '?�동???�택?�세?? 게임마다 최고 ?�수가 기록?�니???��'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '활동을 선택하세요. 게임마다 최고 점수가 기록됩니다 🏆'));
 
   if (unit.vocabulary.length > 0) {
-    panel.appendChild(el('h3', { style: 'margin-top:12px' }, '?�� ?�휘'));
+    panel.appendChild(el('h3', { style: 'margin-top:12px' }, '📚 어휘'));
     const vg = el('div', { class: 'activity-grid' });
     ['flashcard', 'quiz', 'matching'].forEach(act => {
       if (act !== 'flashcard' && unit.vocabulary.length < 4) return;
@@ -1042,7 +1042,7 @@ function renderStudentUnit() {
   }
 
   if (unit.grammar.length > 0) {
-    panel.appendChild(el('h3', { style: 'margin-top:18px' }, '?�� 문법'));
+    panel.appendChild(el('h3', { style: 'margin-top:18px' }, '📖 문법'));
     const gg = el('div', { class: 'activity-grid' });
     ['fillblank', 'sentorder', 'oxquiz'].forEach(act => {
       gg.appendChild(makeActivityTile(act, unit.id, 'grammar'));
@@ -1051,7 +1051,7 @@ function renderStudentUnit() {
   }
 
   if (unit.quizzes.length > 0) {
-    panel.appendChild(el('h3', { style: 'margin-top:18px' }, '?�� ?�습지 ?�즈'));
+    panel.appendChild(el('h3', { style: 'margin-top:18px' }, '📝 학습지 퀴즈'));
     const qg = el('div', { class: 'activity-grid' });
     qg.appendChild(makeActivityTile('pdfquiz', unit.id, 'pdfquiz'));
     panel.appendChild(qg);
@@ -1181,7 +1181,7 @@ function renderStudentActivity() {
   progress.appendChild(el('div', { class: 'game-progress-bar', style: `width:${pct}%` }));
   gh.appendChild(progress);
   gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
-  if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `?�� ${state.game.combo}x`));
+  if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `🔥 ${state.game.combo}x`));
   root.appendChild(gh);
 
   const map = {
@@ -1194,7 +1194,7 @@ function renderStudentActivity() {
 }
 
 async function exitGame() {
-  const ok = await showConfirm('게임 종료', '?�말 종료?�시겠습?�까?\n\n진행 ?�황?�??�?�되지 ?�습?�다.', true);
+  const ok = await showConfirm('게임 종료', '정말 종료하시겠습니까?\n\n진행 상황은 저장되지 않습니다.', true);
   if (!ok) return;
   state.view = 'student-unit';
   state.game = null;
@@ -1221,8 +1221,8 @@ function renderFlashcardGame() {
 
   const ctrl = el('div', { class: 'fc-controls' });
   ctrl.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { g.flipped = !g.flipped; render(); }}, '뒤집기'));
-  ctrl.appendChild(el('button', { class: 'btn btn-danger', onClick: () => { g.wrong++; g.combo = 0; nextFC(); }}, '?�� ??공�?'));
-  ctrl.appendChild(el('button', { class: 'btn btn-success', onClick: () => { g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.score += 10 + g.combo * 2; addXP(5); state.stats.streak++; nextFC(); }}, '?�� ?�다'));
+  ctrl.appendChild(el('button', { class: 'btn btn-danger', onClick: () => { g.wrong++; g.combo = 0; nextFC(); }}, '❌ 몰라요'));
+  ctrl.appendChild(el('button', { class: 'btn btn-success', onClick: () => { g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.score += 10 + g.combo * 2; addXP(5); state.stats.streak++; nextFC(); }}, '✅ 알아요'));
   root.appendChild(ctrl);
   return root;
 }
@@ -1278,10 +1278,10 @@ function answerQuiz(selected, q) {
     const points = 10 + Math.round(g.timeLeft * 2) + g.combo * 3;
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(10); state.stats.streak++;
-    toast(`+${points}??`, 'success');
+    toast(`+${points}점`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
-    toast('?�쉬?�요', 'danger');
+    toast('아쉬워요', 'danger');
   }
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1400);
 }
@@ -1308,7 +1308,7 @@ function renderMatchingGame() {
     grid.appendChild(tile);
   });
   root.appendChild(grid);
-  root.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-top:14px' }, `${g.matched.size}/${g.pairs.length} �??�료`));
+  root.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-top:14px' }, `${g.matched.size}/${g.pairs.length} 쌍 완료`));
   return root;
 }
 function selectMatchCard(c) {
@@ -1340,7 +1340,7 @@ function renderFillBlankGame() {
   if (!q) { showResult(); return el('div'); }
   const root = el('div');
   const sentence = el('div', { class: 'quiz-question' });
-  sentence.innerHTML = `<div class="quiz-sentence">${q.display.replace('___', '<span class="quiz-blank">___</span>')}</div><div class="quiz-hint">?�� ${q.en}</div>`;
+  sentence.innerHTML = `<div class="quiz-sentence">${q.display.replace('___', '<span class="quiz-blank">___</span>')}</div><div class="quiz-hint">💡 ${q.en}</div>`;
   root.appendChild(sentence);
 
   const opts = el('div', { class: 'quiz-options', id: 'fbopts' });
@@ -1365,7 +1365,7 @@ function answerFillBlank(selected, q) {
     toast(`정답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
-    toast(`?�답: ${q.answer}`, 'danger');
+    toast(`오답: ${q.answer}`, 'danger');
   }
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1500);
 }
@@ -1377,7 +1377,7 @@ function renderSentenceOrderGame() {
   if (!q) { showResult(); return el('div'); }
   if (!g.initialized) { g.bank = shuffle(q.words.map((w, i) => ({ w, i }))); g.placed = []; g.initialized = true; }
   const root = el('div');
-  root.appendChild(el('p', { class: 'quiz-hint', style: 'background:#fff; padding:14px; border-radius:12px; margin-bottom:14px; font-size:1.05rem' }, '?�� ' + q.en));
+  root.appendChild(el('p', { class: 'quiz-hint', style: 'background:#fff; padding:14px; border-radius:12px; margin-bottom:14px; font-size:1.05rem' }, '💡 ' + q.en));
 
   const target = el('div', { class: 'so-target' });
   if (g.placed.length === 0) target.appendChild(el('span', { class: 'text-muted' }, '아래 단어를 순서대로 클릭하세요'));
@@ -1390,7 +1390,7 @@ function renderSentenceOrderGame() {
     bank.appendChild(el('div', { class: 'so-word' + (used ? ' used' : ''), onClick: () => { if (!used) { g.placed.push(b); render(); }}}, b.w));
   });
   root.appendChild(bank);
-  root.appendChild(el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:14px', onClick: submitSO }, '???�출'));
+  root.appendChild(el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:14px', onClick: submitSO }, '✅ 제출'));
   return root;
 }
 function submitSO() {
@@ -1402,10 +1402,10 @@ function submitSO() {
     const points = 25 + g.combo * 5;
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(18); state.stats.streak++;
-    toast(`?�벽! +${points}`, 'success');
+    toast(`완벽! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
-    toast(`?�답: ${q.original}`, 'danger');
+    toast(`오답: ${q.original}`, 'danger');
   }
   setTimeout(() => { g.index++; g.initialized = false; if (g.index >= g.total) showResult(); else render(); }, 1800);
 }
@@ -1417,7 +1417,7 @@ function renderOXGame() {
   if (!q) { showResult(); return el('div'); }
   const root = el('div');
   const box = el('div', { class: 'ox-sentence' });
-  box.innerHTML = `<div>${q.sentence}</div><div class="text-muted" style="margin-top:10px; font-size:0.95rem">?�도: ${q.en}</div>`;
+  box.innerHTML = `<div>${q.sentence}</div><div class="text-muted" style="margin-top:10px; font-size:0.95rem">힌트: ${q.en}</div>`;
   root.appendChild(box);
   const btns = el('div', { class: 'ox-buttons' });
   btns.appendChild(el('button', { class: 'ox-btn o', onClick: () => answerOX(true, q) }, '⭕'));
@@ -1432,7 +1432,7 @@ function answerOX(userAns, q) {
     const points = 12 + g.combo * 3;
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(8); state.stats.streak++;
-    toast(`?�답! +${points}`, 'success');
+    toast(`정답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(q.correct ? '⭕ 정답!' : '❌ 정답!', 'danger');
@@ -1450,7 +1450,7 @@ function renderPdfQuizGame() {
   const sentence = el('div', { class: 'quiz-question' });
   const questionHtml = q.question.replace(/_+/, '<span class="quiz-blank">___</span>');
   const hint = getTranslation(q.hint, '');
-  sentence.innerHTML = `<div class="quiz-sentence">${questionHtml}</div>` + (hint ? `<div class="quiz-hint">?�� ${hint}</div>` : '');
+  sentence.innerHTML = `<div class="quiz-sentence">${questionHtml}</div>` + (hint ? `<div class="quiz-hint">💡 ${hint}</div>` : '');
   root.appendChild(sentence);
 
   const opts = el('div', { class: 'quiz-options', id: 'pdfopts' });
@@ -1475,7 +1475,7 @@ function answerPdfQuiz(idx, q) {
     toast(`정답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
-    toast(`?�답: ${q.options[q.correct]}`, 'danger');
+    toast(`오답: ${q.options[q.correct]}`, 'danger');
   }
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1700);
 }
@@ -1500,9 +1500,9 @@ function renderStudentResult() {
   const g = state.game;
   const root = el('div');
   const card = el('div', { class: 'result-card' });
-  const icon = g.finalStars >= 3 ? '?��' : g.finalStars >= 2 ? '?��' : g.finalStars >= 1 ? '?��' : '?��';
-  const title = g.finalStars >= 3 ? '?�벽?�요!' : g.finalStars >= 2 ? '?�했?�요!' : g.finalStars >= 1 ? '좋아??' : '?�시 ?�전!';
-  card.innerHTML = `<div class="icon">${icon}</div><div class="title">${title}</div><div class="text-muted">${ACTIVITIES[g.activity].name} ?�료</div>`;
+  const icon = g.finalStars >= 3 ? '🏆' : g.finalStars >= 2 ? '🥈' : g.finalStars >= 1 ? '🥉' : '😢';
+  const title = g.finalStars >= 3 ? '완벽해요!' : g.finalStars >= 2 ? '잘했어요!' : g.finalStars >= 1 ? '좋아요!' : '다시 도전!';
+  card.innerHTML = `<div class="icon">${icon}</div><div class="title">${title}</div><div class="text-muted">${ACTIVITIES[g.activity].name} 완료</div>`;
 
   const stars = el('div', { class: 'stars' });
   for (let i = 0; i < 3; i++) stars.appendChild(el('span', { class: i < g.finalStars ? 'filled' : 'empty' }, '⭐'));
@@ -1516,11 +1516,11 @@ function renderStudentResult() {
   });
   card.appendChild(stats);
 
-  (g.newBadges || []).forEach(b => card.appendChild(el('div', { class: 'badge-earned' }, '?���?' + b.name)));
+  (g.newBadges || []).forEach(b => card.appendChild(el('div', { class: 'badge-earned' }, '🏅 ' + b.name)));
 
   const actions = el('div', { style: 'display:flex; gap:10px; margin-top:14px' });
-  actions.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { state.view = 'student-unit'; render(); }}, '?�원?�로'));
-  actions.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: () => startActivity(g.activity) }, '?�� ?�시'));
+  actions.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { state.view = 'student-unit'; render(); }}, '단원으로'));
+  actions.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: () => startActivity(g.activity) }, '🔄 다시'));
   card.appendChild(actions);
   root.appendChild(card);
   return root;
