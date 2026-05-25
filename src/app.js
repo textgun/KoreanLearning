@@ -120,7 +120,11 @@ async function callAI(prompt) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
-    if (!res.ok) throw new Error('AI 호출 실패: ' + res.status + (res.status === 404 ? ' (모델명 오류 — AI 설정에서 gemini-1.5-flash 선택)' : res.status === 400 ? ' (API 키/모델 확인)' : ''));
+    if (!res.ok) {
+      let errMsg = '';
+      try { const e = await res.json(); errMsg = e?.error?.message || ''; } catch {}
+      throw new Error(`Gemini 오류 ${res.status}: ${errMsg || res.statusText}`);
+    }
     const data = await res.json();
     text = data.candidates[0].content.parts[0].text;
   }
