@@ -136,6 +136,7 @@ async function callAI(prompt) {
 let state = {
   view: 'home',
   language: 'en',
+  studentName: '',
   units: [],
   currentUnitId: null,
   currentActivity: null,
@@ -162,7 +163,7 @@ async function _doSave() {
   if (_saving) return;
   _saving = true;
   try {
-    const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language }});
+    const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language, studentName: state.studentName }});
     await _withRetry(() => window.storage.set(STORAGE_KEY, payload), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
   } catch (e) {
@@ -185,6 +186,7 @@ async function loadAll() {
       state.units = data.units && data.units.length > 0 ? data.units : [SAMPLE_UNIT];
       state.stats = data.stats || { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
       state.language = (data.settings && data.settings.language) || 'en';
+      state.studentName = (data.settings && data.settings.studentName) || '';
       return;
     }
   } catch (e) {
@@ -460,6 +462,19 @@ function renderHome() {
   });
   langPanel.appendChild(langGrid);
   root.appendChild(langPanel);
+
+  // Student name input
+  const namePanel = el('div', { class: 'home-lang-panel', style: 'margin-top:12px' });
+  namePanel.appendChild(el('h3', {}, '🧑‍🎓 학생 이름 (Student Name)'));
+  const nameInput = el('input', {
+    type: 'text',
+    placeholder: '이름을 입력하세요 / Enter student name',
+    value: state.studentName,
+    style: 'width:100%; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; margin-top:8px; box-sizing:border-box;',
+    onInput: e => { state.studentName = e.target.value; persistAll(); }
+  });
+  namePanel.appendChild(nameInput);
+  root.appendChild(namePanel);
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
