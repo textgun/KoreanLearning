@@ -608,7 +608,7 @@ function showPrompt(title, placeholder = '') {
 }
 
 async function createBlankUnit() {
-  const title = await showPrompt('???�원 만들�?, '?? 10�?- 가�?);
+  const title = await showPrompt('새 단원 만들기', '예: 10단원 - 가족');
   if (!title) return;
   state.units.push({ id: Date.now(), title, vocabulary: [], grammar: [], quizzes: [] });
   await persistAll(true);
@@ -1183,7 +1183,7 @@ function renderStudentActivity() {
   const pct = state.game.total ? Math.min(100, (state.game.index / state.game.total) * 100) : 0;
   progress.appendChild(el('div', { class: 'game-progress-bar', style: `width:${pct}%` }));
   gh.appendChild(progress);
-  gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}??));
+  gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
   if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `?�� ${state.game.combo}x`));
   root.appendChild(gh);
 
@@ -1365,7 +1365,7 @@ function answerFillBlank(selected, q) {
     const points = 15 + g.combo * 3;
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(12); state.stats.streak++;
-    toast(`?�답! +${points}??, 'success');
+    toast(`정답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`?�답: ${q.answer}`, 'danger');
@@ -1438,7 +1438,7 @@ function answerOX(userAns, q) {
     toast(`?�답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
-    toast(q.correct ? '?��? �? : '?��? ??, 'danger');
+    toast(q.correct ? '⭕ 정답!' : '❌ 정답!', 'danger');
   }
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1300);
 }
@@ -1475,7 +1475,7 @@ function answerPdfQuiz(idx, q) {
     const points = 20 + g.combo * 4;
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(15); state.stats.streak++;
-    toast(`?�답! +${points}??, 'success');
+    toast(`정답! +${points}`, 'success');
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`?�답: ${q.options[q.correct]}`, 'danger');
