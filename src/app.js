@@ -79,7 +79,7 @@ const ACTIVITIES = {
 const PROVIDERS = {
   anthropic: { name: 'Anthropic', icon: '🟠', models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'], keyHint: 'sk-ant-api03-...' },
   openai:    { name: 'OpenAI',    icon: '🟢', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'], keyHint: 'sk-proj-...' },
-  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-1.5-flash', 'gemini-1.5-pro'], keyHint: 'AIzaSy...' },
+  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'], keyHint: 'AIzaSy...' },
   groq:      { name: 'Groq',      icon: '⚡', models: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], keyHint: 'gsk_...' }
 };
 function getProvider() { return localStorage.getItem('ai_provider') || 'anthropic'; }
@@ -115,7 +115,8 @@ async function callAI(prompt) {
     const data = await res.json();
     text = data.choices[0].message.content;
   } else if (provider === 'gemini') {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+    const geminiVersion = model.startsWith('gemini-1.5') ? 'v1' : 'v1beta';
+    const res = await fetch(`https://generativelanguage.googleapis.com/${geminiVersion}/models/${model}:generateContent?key=${key}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
