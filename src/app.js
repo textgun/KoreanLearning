@@ -461,10 +461,10 @@ function renderHome() {
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher'; render(); }});
-  teacherCard.innerHTML = '<div class="icon">?��?��?/div><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">?�원 관�?· PDF ?�동 변??/p>';
+  teacherCard.innerHTML = '<div class="icon">📚✏️</div><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student'; render(); }});
-  studentCard.innerHTML = '<div class="icon">?��</div><h3>?�생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임?�로 ?�국??배우�?/p>';
+  studentCard.innerHTML = '<div class="icon">🎓</div><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임으로 한국어 배우기</p>';
 
   grid.append(teacherCard, studentCard);
   root.appendChild(grid);
@@ -549,7 +549,7 @@ function renderTeacherCreate() {
   const opts = el('div', { class: 'create-options' });
 
   const pdfOpt = el('div', { class: 'option-card' });
-  pdfOpt.innerHTML = '<div class="icon">?��</div><div class="label">PDF ?�동 변??/div><div class="desc">?�습지 PDF?�서 ?�휘·문법·?�즈�??�동 추출</div>';
+  pdfOpt.innerHTML = '<div class="icon">📄</div><div class="label">PDF 자동 변환</div><div class="desc">학습지 PDF에서 어휘·문법·퀴즈를 자동 추출</div>';
   const fileInput = el('input', { type: 'file', accept: 'application/pdf', style: 'margin-top:10px; font-size:0.92rem' });
   fileInput.onchange = handlePDFUpload;
   pdfOpt.appendChild(fileInput);
