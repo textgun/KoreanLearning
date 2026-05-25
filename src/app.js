@@ -771,7 +771,8 @@ async function handlePDFUpload(e) {
       const model = getModel('gemini');
       const uploadedFile = await uploadToGeminiFiles(file, key);
       status.innerHTML = `<span class="spinner"></span> ${pInfo.icon} ${pInfo.name} PDF 분석 중...`;
-      const prompt = `이것은 한국어 학습 교재 PDF입니다. 내용을 분석하여 아래 JSON 형식으로만 출력하세요 (마크다운, 코드블록 없이 순수 JSON만):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"English meaning"}],"grammar":[{"p":"~패턴","x":"English explanation","ex":[{"k":"한국어 예문","e":"English"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["선택지1","선택지2","선택지3","선택지4"],"c":0,"h":"English hint"}]}\n\n요구사항:\n- 모든 한국어 어휘 추출 (장소, 동사, 명사, 형용사 등)\n- 1~3개 문법 패턴 식별\n- 5~6개 빈칸 채우기 퀴즈 (4지선다)\n- JSON만 출력`;
+      const langName = LANGS.find(l => l.code === state.language)?.name || 'English';
+      const prompt = `이것은 한국어 학습 교재 PDF입니다. 학생 언어: ${langName}. 내용을 분석하여 아래 JSON 형식으로만 출력하세요 (마크다운, 코드블록 없이 순수 JSON만):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"${langName}로 뜻"}],"grammar":[{"p":"~패턴","x":"${langName}로 설명","ex":[{"k":"한국어 예문","e":"${langName}로 번역"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["선택지1","선택지2","선택지3","선택지4"],"c":0,"h":"${langName}로 힌트"}]}\n\n요구사항:\n- 모든 한국어 어휘 추출 (장소, 동사, 명사, 형용사 등)\n- 1~3개 문법 패턴 식별\n- 5~6개 빈칸 채우기 퀴즈 (4지선다)\n- 뜻/설명/힌트는 반드시 ${langName}로 작성\n- JSON만 출력`;
       try {
         aiText = await callGeminiWithFile(uploadedFile.uri, prompt, key, model);
       } finally {
@@ -784,7 +785,8 @@ async function handlePDFUpload(e) {
       if (validationError) throw new Error(validationError);
       const textForAI = pdfText.slice(0, 6000);
       status.innerHTML = `<span class="spinner"></span> ${pInfo.icon} ${pInfo.name} 분석 중... (${textForAI.length}자)`;
-      const prompt = `Below is text from a Korean language learning textbook. Extract content as JSON only (no markdown):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"English"}],"grammar":[{"p":"~패턴","x":"English","ex":[{"k":"예문","e":"English"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["a","b","c","d"],"c":0,"h":"hint"}]}\n\nTEXT:\n${textForAI}`;
+      const langName = LANGS.find(l => l.code === state.language)?.name || 'English';
+      const prompt = `Below is text from a Korean language learning textbook. Student language: ${langName}. Extract content as JSON only (no markdown):\n{"title":"단원 제목","vocab":[{"w":"한글단어","r":"romanization","e":"📝","m":"meaning in ${langName}"}],"grammar":[{"p":"~패턴","x":"explanation in ${langName}","ex":[{"k":"예문","e":"translation in ${langName}"}]}],"quiz":[{"q":"문장 ___ 빈칸","o":["a","b","c","d"],"c":0,"h":"hint in ${langName}"}]}\n\nAll meanings, explanations, and hints MUST be written in ${langName}.\n\nTEXT:\n${textForAI}`;
       aiText = await callAI(prompt);
     }
 
@@ -799,11 +801,11 @@ async function handlePDFUpload(e) {
         word: v.w || v.word || v.korean || '',
         romanization: v.r || v.romanization || '',
         emoji: v.e || v.emoji || '📝',
-        translations: { en: v.m || v.meaning || v.english || '' }
+        translations: { en: v.m || v.meaning || v.english || '', [state.language]: v.m || v.meaning || v.english || '' }
       })).filter(v => v.word),
       grammar: (parsed.grammar || []).map(g => ({
         pattern: g.p || g.pattern || '',
-        explanation: { en: g.x || g.explanation || g.english || '' },
+        explanation: { en: g.x || g.explanation || g.english || '', [state.language]: g.x || g.explanation || g.english || '' },
         examples: (g.ex || g.examples || []).map(ex => ({
           ko: ex.k || ex.korean || '',
           en: ex.e || ex.english || ''
@@ -813,7 +815,7 @@ async function handlePDFUpload(e) {
         question: q.q || q.question || '',
         options: q.o || q.options || [],
         correct: typeof q.c === 'number' ? q.c : (typeof q.correct === 'number' ? q.correct : 0),
-        hint: { en: q.h || q.hint || '' }
+        hint: { en: q.h || q.hint || '', [state.language]: q.h || q.hint || '' }
       })).filter(q => q.question && q.options && q.options.length >= 2)
     };
 
@@ -1284,7 +1286,7 @@ function generateOXQuestions(unit) {
 function renderStudentActivity() {
   const root = el('div');
   const gh = el('div', { class: 'game-header' });
-  gh.appendChild(el('button', { class: 'back-btn', onClick: exitGame }, '??종료'));
+  gh.appendChild(el('button', { class: 'back-btn', onClick: exitGame }, '✕ 종료'));
   const progress = el('div', { class: 'game-progress' });
   const pct = state.game.total ? Math.min(100, (state.game.index / state.game.total) * 100) : 0;
   progress.appendChild(el('div', { class: 'game-progress-bar', style: `width:${pct}%` }));
