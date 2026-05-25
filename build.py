@@ -21,7 +21,10 @@ def main():
     style    = (SRC / "style.css").read_text(encoding="utf-8")
     script   = (SRC / "app.js").read_text(encoding="utf-8")
 
-    output = template.replace("{{STYLE}}", style).replace("{{SCRIPT}}", script)
+    output = (template
+        .replace('<link rel="stylesheet" href="style.css">', f"<style>\n{style}\n</style>")
+        .replace('<script src="app.js"></script>', f"<script>\n{script}\n</script>")
+    )
     out_path = DIST / "index.html"
     out_path.write_text(output, encoding="utf-8")
 
