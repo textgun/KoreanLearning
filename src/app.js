@@ -683,8 +683,9 @@ async function handlePDFUpload(e) {
 
     const prompt = `Below is text from a Korean language learning textbook. Extract content as JSON.\n\nOutput ONLY this JSON (no markdown, no extra text):\n{\n  \"title\": \"단원 제목 (찾을 수 없으면 추출된 첫 한글 구절)\",\n  \"vocab\": [{\"w\":\"한글단어\",\"r\":\"ro-ma-ni-za-tion\",\"e\":\"📝\",\"m\":\"English\"}],\n  \"grammar\": [{\"p\":\"~패턴\",\"x\":\"English\",\"ex\":[{\"k\":\"예문\",\"e\":\"English\"}]}],\n  \"quiz\": [{\"q\":\"문장 ___ 빈칸\",\"o\":[\"a\",\"b\",\"c\",\"d\"],\"c\":0,\"h\":\"English hint\"}]\n}\n\nRequirements:\n- Find ALL Korean vocabulary words/phrases in the text (장소, 동사, 명사 등)\n- Identify 1-3 grammar patterns mentioned\n- Create 5-6 fill-in-the-blank quiz questions with 4 options each\n- Keep strings short to fit budget\n- Output JSON only\n\nTEXT:\n${textForAI}`;
 
+    console.log('📄 AI에 보낸 텍스트 (앞 300자):', textForAI.slice(0, 300));
     const aiText = await callAI(prompt);
-    console.log('🤖 AI 응답:', aiText);
+    console.log('🤖 AI 응답 전체:', aiText);
 
     const parsed = parseJSONSafe(aiText);
     const parseError = validateParsedUnit(parsed);
@@ -719,11 +720,14 @@ async function handlePDFUpload(e) {
     };
 
     const totalCount = newUnit.vocabulary.length + newUnit.grammar.length + newUnit.quizzes.length;
-    console.log('✅ 추출 결과:', { 어휘: newUnit.vocabulary.length, 문법: newUnit.grammar.length, 퀴즈: newUnit.quizzes.length, raw: parsed });
+    console.log('✅ 추출 결과:', { 어휘: newUnit.vocabulary.length, 문법: newUnit.grammar.length, 퀴즈: newUnit.quizzes.length });
+    console.log('🔍 raw vocab[0]:', parsed.vocab?.[0], '| raw grammar[0]:', parsed.grammar?.[0], '| raw quiz[0]:', parsed.quiz?.[0]);
 
     if (totalCount === 0) {
-      const rawKeys = parsed ? Object.keys(parsed).join(', ') : '없음';
-      throw new Error(`추출된 콘텐츠가 없습니다. AI 응답 키: ${rawKeys}\n브라우저 콘솔(F12)에서 "🤖 AI 응답" 로그를 확인하세요.`);
+      const vocabLen = (parsed.vocab || []).length;
+      const grammarLen = (parsed.grammar || []).length;
+      const quizLen = (parsed.quiz || []).length;
+      throw new Error(`추출된 콘텐츠가 없습니다. (AI 반환: vocab ${vocabLen}개, grammar ${grammarLen}개, quiz ${quizLen}개 — 모두 필터링됨)\nF12 콘솔의 "🔍 raw vocab[0]" 로그를 확인하세요.`);
     }
 
     state.units.push(newUnit);
