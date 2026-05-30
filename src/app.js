@@ -69,7 +69,7 @@ const SAMPLE_UNIT = {
 };
 
 const ACTIVITIES = {
-  flashcard: { name: 'Flashcards',   icon: '📸', type: 'vocab',   desc: '단어 카드' },
+  flashcard: { name: '단어카드',      icon: '📸', type: 'vocab',   desc: '단어 카드' },
   quiz:      { name: '4지선다 퀴즈', icon: '❓',      type: 'vocab',   desc: '답 맞히기' },
   matching:  { name: '매칭 게임',    icon: '🧩', type: 'vocab',   desc: '쌍 맞추기' },
   fillblank: { name: '빈칸 채우기',  icon: '✏️', type: 'grammar', desc: '문장 완성' },
@@ -1374,7 +1374,7 @@ function renderFlashcardGame() {
   root.appendChild(area);
 
   const ctrl = el('div', { class: 'fc-controls' });
-  ctrl.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { g.flipped = !g.flipped; render(); }}, '뒤집기'));
+  ctrl.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { g.flipped = !g.flipped; render(); }}, '🔄 뒤집기'));
   ctrl.appendChild(el('button', { class: 'btn btn-danger', onClick: () => { g.wrong++; g.combo = 0; nextFC(); }}, '❌ 몰라요'));
   ctrl.appendChild(el('button', { class: 'btn btn-success', onClick: () => { g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.score += 10 + g.combo * 2; addXP(5); state.stats.streak++; nextFC(); }}, '✅ 알아요'));
   root.appendChild(ctrl);
