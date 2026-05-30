@@ -1,3 +1,11 @@
 dist/
 __pycache__/
 *.pyc
+check_*.txt
+fix_*.py
+find_*.py
+*_lines.txt
+*_garbled.txt
+*_debug.txt
+suspicious.txt
+quote_counts.txt

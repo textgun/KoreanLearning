@@ -1132,6 +1132,32 @@ function renderStudentUnit() {
   if (!unit) { state.view = 'student'; render(); return el('div'); }
   if (!unit.quizzes) unit.quizzes = [];
   const root = el('div');
+
+  // 문법 설명 패널 (활동 목록보다 먼저 표시)
+  if (unit.grammar.length > 0) {
+    const grPanel = el('div', { class: 'panel student-grammar-panel' });
+    grPanel.appendChild(el('h3', { style: 'margin-bottom:14px' }, '📖 오늘의 문법'));
+    unit.grammar.forEach(g => {
+      const card = el('div', { class: 'student-grammar-card' });
+      card.appendChild(el('div', { class: 'student-grammar-pattern' }, g.pattern));
+      const expl = getTranslation(g.explanation);
+      if (expl) card.appendChild(el('div', { class: 'student-grammar-explanation' }, expl));
+      if (g.examples && g.examples.length > 0) {
+        const exList = el('div', { class: 'student-grammar-examples' });
+        g.examples.forEach(ex => {
+          const item = el('div', { class: 'student-grammar-example' });
+          item.appendChild(el('div', { class: 'ko' }, ex.ko));
+          const trans = ex[state.language] || ex.en;
+          if (trans) item.appendChild(el('div', { class: 'trans' }, trans));
+          exList.appendChild(item);
+        });
+        card.appendChild(exList);
+      }
+      grPanel.appendChild(card);
+    });
+    root.appendChild(grPanel);
+  }
+
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'student'; render(); }}, '← 단원 목록'));
   panel.appendChild(el('h2', { style: 'margin-top:10px' }, unit.title));

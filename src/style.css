@@ -146,6 +146,26 @@
   .vocab-edit-grid { display: grid; grid-template-columns: 80px 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
   @media (max-width: 700px) { .vocab-edit-grid { grid-template-columns: 1fr; } }
 
+  /* Student grammar explanation */
+  .student-grammar-panel { border-top: 4px solid var(--primary); }
+  .student-grammar-card {
+    background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
+    border-left: 4px solid var(--primary);
+  }
+  .student-grammar-pattern {
+    font-size: 1.25rem; font-weight: 800; color: var(--primary-dark); margin-bottom: 8px;
+  }
+  .student-grammar-explanation {
+    font-size: 1rem; line-height: 1.65; color: #374151; margin-bottom: 10px;
+  }
+  .student-grammar-examples { display: flex; flex-direction: column; gap: 7px; }
+  .student-grammar-example {
+    background: rgba(255,255,255,0.75); border-radius: 8px; padding: 9px 13px;
+  }
+  .student-grammar-example .ko { font-weight: 700; font-size: 1.05rem; }
+  .student-grammar-example .trans { font-size: 0.92rem; color: var(--muted); margin-top: 3px; }
+
   /* Student */
   .unit-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px;
