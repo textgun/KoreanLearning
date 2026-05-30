@@ -876,7 +876,6 @@ function renderTeacherEdit() {
     const delBtn = el('button', { class: 'btn btn-danger btn-sm', onClick: () => { unit.vocabulary.splice(i, 1); persistAll(); render(); }}, '🗑️');
     grid.append(emojiIn, wordIn, romanIn, meaningIn, delBtn);
     item.appendChild(grid);
-    item.appendChild(el('button', { class: 'btn btn-accent btn-sm', style: 'margin-top:8px', onClick: () => autoTranslateVocab(v) }, '🌐 자동 번역'));
     vocabPanel.appendChild(item);
   });
   vocabPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addVocab(unit) }, '+ 단어 추가하기'));
