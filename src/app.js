@@ -201,6 +201,59 @@ async function loadAll() {
 }
 
 /* =========================================================
+   IMAGE STORE (IndexedDB)
+   ========================================================= */
+const _imageCache = new Map();
+const _IDB_NAME = 'korean_img_v1';
+const _IDB_STORE = 'images';
+
+function _openImageDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = e => {
+      if (!e.target.result.objectStoreNames.contains(_IDB_STORE))
+        e.target.result.createObjectStore(_IDB_STORE);
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+async function saveImage(key, dataUrl) {
+  const db = await _openImageDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).put(dataUrl, key);
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+async function getImage(key) {
+  const db = await _openImageDB();
+  return new Promise(res => {
+    const req = db.transaction(_IDB_STORE, 'readonly').objectStore(_IDB_STORE).get(key);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => res(null);
+  });
+}
+function deleteImage(key) {
+  _openImageDB().then(db => {
+    db.transaction(_IDB_STORE, 'readwrite').objectStore(_IDB_STORE).delete(key);
+  }).catch(() => {});
+}
+function getVocabImageSrc(v) {
+  if (v && v.imageUrl) return v.imageUrl;
+  if (v && v.imageKey && _imageCache.has(v.imageKey)) return _imageCache.get(v.imageKey);
+  return null;
+}
+function loadVocabImageAsync(v) {
+  if (v && v.imageKey && !_imageCache.has(v.imageKey)) {
+    getImage(v.imageKey).then(data => {
+      if (data) { _imageCache.set(v.imageKey, data); render(); }
+    });
+  }
+}
+
+/* =========================================================
    UTILITIES
    ========================================================= */
 function $(s) { return document.querySelector(s); }
@@ -876,6 +929,45 @@ function renderTeacherEdit() {
     grid.append(emojiIn, wordIn, romanIn, meaningIn, delBtn);
     item.appendChild(grid);
     item.appendChild(el('button', { class: 'btn btn-accent btn-sm', style: 'margin-top:8px', onClick: () => autoTranslateVocab(v) }, '🌐 자동 번역'));
+    const imgRow = el('div', { class: 'vocab-image-row' });
+    const imgSrc = getVocabImageSrc(v);
+    if (imgSrc) {
+      imgRow.appendChild(el('img', { src: imgSrc, class: 'vocab-image-preview' }));
+      imgRow.appendChild(el('button', { class: 'btn btn-danger btn-sm', onClick: async () => {
+        if (v.imageKey) { deleteImage(v.imageKey); _imageCache.delete(v.imageKey); v.imageKey = ''; }
+        v.imageUrl = '';
+        await persistAll(); render();
+      }}, '🗑️ 이미지 삭제'));
+    } else {
+      loadVocabImageAsync(v);
+      const urlIn = el('input', { type: 'url', placeholder: '이미지 URL (https://...)', style: 'flex:1; min-width:0' });
+      urlIn.value = v.imageUrl || '';
+      urlIn.onblur = () => { v.imageUrl = urlIn.value.trim(); if (v.imageUrl) { persistAll(); render(); } };
+      const fileIn = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+      fileIn.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 800 * 1024) { toast('800KB 이하 이미지만 가능합니다', 'danger'); return; }
+        const key = `img_${unit.id}_${i}_${Date.now()}`;
+        toast('저장 중...', 'accent');
+        const reader = new FileReader();
+        reader.onload = async (re) => {
+          const data = re.target.result;
+          await saveImage(key, data);
+          _imageCache.set(key, data);
+          if (v.imageKey) { deleteImage(v.imageKey); _imageCache.delete(v.imageKey); }
+          v.imageKey = key; v.imageUrl = '';
+          await persistAll();
+          toast('✅ 이미지 저장됨', 'success');
+          render();
+        };
+        reader.readAsDataURL(file);
+      };
+      imgRow.appendChild(urlIn);
+      imgRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => fileIn.click() }, '🖼️ 업로드'));
+      imgRow.appendChild(fileIn);
+    }
+    item.appendChild(imgRow);
     vocabPanel.appendChild(item);
   });
   vocabPanel.appendChild(el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px', onClick: () => addVocab(unit) }, '+ 단어 추가하기'));
@@ -1352,7 +1444,11 @@ function renderFlashcardGame() {
   const area = el('div', { class: 'fc-area' + (g.flipped ? ' flipped' : '') });
   const inner = el('div', { class: 'fc-inner' });
   const front = el('div', { class: 'fc-face' });
-  front.innerHTML = `<div class="fc-emoji">${card.emoji}</div><div class="fc-word">${card.word}</div><div class="fc-roman">${card.romanization || ''}</div>`;
+  loadVocabImageAsync(card);
+  const fcImgSrc = getVocabImageSrc(card);
+  front.innerHTML = fcImgSrc
+    ? `<img src="${fcImgSrc}" class="fc-image"><div class="fc-word">${card.word}</div><div class="fc-roman">${card.romanization || ''}</div>`
+    : `<div class="fc-emoji">${card.emoji}</div><div class="fc-word">${card.word}</div><div class="fc-roman">${card.romanization || ''}</div>`;
   const back = el('div', { class: 'fc-face fc-back' });
   back.innerHTML = `<div class="fc-meaning">${getTranslation(card.translations)}</div><div class="fc-roman" style="margin-top:14px">${card.word} · ${card.romanization || ''}</div>`;
   inner.append(front, back);
@@ -1384,7 +1480,11 @@ function renderQuizGame() {
   root.appendChild(tbar);
 
   const qbox = el('div', { class: 'quiz-question' });
-  qbox.innerHTML = `<div class="quiz-emoji">${q.target.emoji}</div><div class="quiz-word">${q.target.word}</div><div class="quiz-prompt">${q.target.romanization || ''}</div>`;
+  loadVocabImageAsync(q.target);
+  const qImgSrc = getVocabImageSrc(q.target);
+  qbox.innerHTML = qImgSrc
+    ? `<img src="${qImgSrc}" class="fc-image" style="max-height:160px"><div class="quiz-word">${q.target.word}</div><div class="quiz-prompt">${q.target.romanization || ''}</div>`
+    : `<div class="quiz-emoji">${q.target.emoji}</div><div class="quiz-word">${q.target.word}</div><div class="quiz-prompt">${q.target.romanization || ''}</div>`;
   root.appendChild(qbox);
 
   const opts = el('div', { class: 'quiz-options', id: 'quizopts' });
@@ -1435,7 +1535,8 @@ function renderMatchingGame() {
   if (!g.cards) {
     const cards = [];
     g.pairs.forEach((v, i) => {
-      cards.push({ id: 'ko_' + i, pair: i, text: v.word, type: 'ko', emoji: v.emoji });
+      loadVocabImageAsync(v);
+      cards.push({ id: 'ko_' + i, pair: i, text: v.word, type: 'ko', emoji: v.emoji, imageUrl: v.imageUrl || '', imageKey: v.imageKey || '' });
       cards.push({ id: 'tr_' + i, pair: i, text: getTranslation(v.translations), type: 'tr' });
     });
     g.cards = shuffle(cards);
@@ -1446,7 +1547,10 @@ function renderMatchingGame() {
     const isSelected = g.selected.includes(c);
     const cls = 'match-card' + (isMatched ? ' matched' : '') + (isSelected ? ' selected' : '');
     const tile = el('div', { class: cls, onClick: () => selectMatchCard(c) });
-    tile.innerHTML = c.type === 'ko' ? `<div><div style="font-size:1.4rem">${c.emoji}</div><div style="margin-top:4px">${c.text}</div></div>` : c.text;
+    const mImgSrc = c.type === 'ko' ? getVocabImageSrc(c) : null;
+    tile.innerHTML = c.type === 'ko'
+      ? `<div>${mImgSrc ? `<img src="${mImgSrc}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">` : `<div style="font-size:1.4rem">${c.emoji}</div>`}<div style="margin-top:4px">${c.text}</div></div>`
+      : c.text;
     grid.appendChild(tile);
   });
   root.appendChild(grid);
