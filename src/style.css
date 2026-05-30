@@ -145,8 +145,6 @@
   }
   .vocab-edit-grid { display: grid; grid-template-columns: 80px 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
   @media (max-width: 700px) { .vocab-edit-grid { grid-template-columns: 1fr; } }
-  .vocab-image-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .vocab-image-preview { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border); flex-shrink: 0; }
 
   /* Student grammar explanation */
   .student-grammar-panel { border-top: 4px solid var(--primary); }
@@ -224,7 +222,6 @@
     background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,0.15);
   }
   .fc-back { transform: rotateY(180deg); background: linear-gradient(135deg, #f093fb, #f5576c); color: #fff; }
-  .fc-image { max-width: 100%; max-height: 220px; border-radius: 12px; object-fit: contain; margin-bottom: 16px; }
   .fc-emoji { font-size: 6rem; margin-bottom: 16px; }
   .fc-word { font-size: 2.4rem; font-weight: 900; letter-spacing: -1px; }
   .fc-roman { font-size: 1.05rem; color: var(--muted); margin-top: 6px; font-style: italic; }
