@@ -143,6 +143,7 @@ let state = {
   currentUnitId: null,
   currentActivity: null,
   currentStudent: null,
+  currentTeacher: null,
   adminTeacherId: null,
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
@@ -266,7 +267,15 @@ async function loadAll() {
    MASTER ADMIN STORAGE
    ========================================================= */
 const MASTER_KEY = 'korean_master_v1';
-const NATIONALITIES = ['중국', '베트남', '일본', '태국', '몽골', '필리핀', '인도네시아', '우즈베키스탄', '네팔', '캄보디아', '키르기스스탄', '미국', '기타'];
+const NATIONALITIES = [
+  '중국','베트남','일본','태국','몽골','필리핀','인도네시아','우즈베키스탄','네팔','캄보디아','키르기스스탄','카자흐스탄','타지키스탄','투르크메니스탄','미얀마','라오스','말레이시아','싱가포르','인도','방글라데시','파키스탄','스리랑카',
+  '미국','캐나다','멕시코','브라질','아르헨티나','콜롬비아','칠레','페루','베네수엘라','에콰도르','볼리비아','파라과이','우루과이',
+  '영국','독일','프랑스','이탈리아','스페인','포르투갈','네덜란드','벨기에','스위스','오스트리아','스웨덴','노르웨이','덴마크','핀란드','폴란드','체코','헝가리','루마니아','그리스','우크라이나','러시아','터키',
+  '오스트레일리아','뉴질랜드',
+  '이집트','사우디아라비아','아랍에미리트','이란','이라크','이스라엘','요르단','쿠웨이트','카타르','바레인','오만','레바논','시리아','아프가니스탄',
+  '나이지리아','에티오피아','케냐','가나','남아프리카공화국','탄자니아','우간다','잠비아','짐바브웨','모로코','튀니지','알제리','수단',
+  '기타'
+];
 
 let masterState = { teachers: [] };
 
@@ -411,7 +420,7 @@ function render() {
   app.appendChild(renderTopbar());
   const v = state.view;
   const map = {
-    'home': renderHome, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
+    'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
     'student-select': renderStudentSelect,
@@ -428,14 +437,12 @@ function renderTopbar() {
   if (state.view !== 'home') {
     statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '🏠'));
   }
-  const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
-  statsRow.appendChild(el('button', {
-    class: 'btn btn-sm',
-    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}`,
-    onClick: showApiKeyModal
-  }, _pk ? `${_pi.icon} ${_pi.name} ✓` : '⚠️ AI 설정'));
   const lang = getLangInfo();
   statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
+  statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, '👑 관리자'));
+  if (state.currentTeacher) {
+    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#dbeafe; color:#1d4ed8' }, `👩‍🏫 ${state.currentTeacher.name}`));
+  }
   if (state.currentStudent) {
     statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#ede9fe; color:#5b21b6' }, `🧑‍🎓 ${state.currentStudent}`));
     statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
@@ -453,6 +460,7 @@ function goHome() {
     state.currentStudent = null;
     state.stats = defaultStats();
   }
+  state.currentTeacher = null;
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
@@ -591,18 +599,46 @@ function renderHome() {
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = masterState.teachers.length > 0 ? 'teacher-select' : 'teacher'; render(); }});
   teacherCard.innerHTML = '<div class="icon">📚✏️</div><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
   studentCard.innerHTML = '<div class="icon">🎓</div><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임으로 한국어 배우기</p>';
 
-  const adminCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'admin'; render(); }});
-  adminCard.innerHTML = '<div class="icon">👑</div><h3>관리자</h3><p>Master Admin</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">교사 · 학생 · 진도 관리</p>';
-
-  grid.append(teacherCard, studentCard, adminCard);
+  grid.append(teacherCard, studentCard);
   root.appendChild(grid);
 
+  return root;
+}
+
+/* =========================================================
+   TEACHER SELECT
+   ========================================================= */
+function renderTeacherSelect() {
+  const root = el('div');
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 뒤로'));
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '👩‍🏫 교사 선택'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '본인의 이름을 선택하세요.'));
+
+  const grid = el('div', { class: 'mode-grid' });
+  masterState.teachers.forEach(teacher => {
+    const card = el('div', { class: 'mode-card', onClick: () => {
+      state.currentTeacher = teacher;
+      state.students = (teacher.students || []).map(s => s.name);
+      state.view = 'teacher';
+      render();
+    }});
+    const sc = teacher.status === 'teaching';
+    card.appendChild(el('div', { class: 'icon' }, '👩‍🏫'));
+    card.appendChild(el('h3', {}, teacher.name));
+    card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
+    card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
+    grid.appendChild(card);
+  });
+  panel.appendChild(grid);
+
+  root.appendChild(panel);
   return root;
 }
 
@@ -642,19 +678,20 @@ function renderTeacher() {
 
   // Student roster (read-only — managed by master admin)
   const rosterPanel = el('div', { class: 'panel' });
-  const rosterHead = el('div', { class: 'row-between' });
-  rosterHead.appendChild(el('h3', { style: 'margin-bottom:0' }, '🧑‍🎓 학생 명단'));
-  rosterHead.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, '👑 관리자에서 수정'));
-  rosterPanel.appendChild(rosterHead);
-  if (state.students.length === 0) {
-    rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-top:10px; font-size:0.9rem' }, '관리자 대시보드에서 교사를 등록하고 학생을 추가하세요.'));
+  rosterPanel.appendChild(el('h3', {}, '🧑‍🎓 학생 명단'));
+  const teacherStudents = state.currentTeacher ? (state.currentTeacher.students || []) : [];
+  if (teacherStudents.length === 0) {
+    rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-top:10px; font-size:0.9rem' }, '관리자 대시보드에서 학생을 추가하세요.'));
   } else {
-    const studentChips = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-top:10px' });
-    state.students.forEach(name => {
-      const chip = el('div', { style: 'background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' }, name);
-      studentChips.appendChild(chip);
+    const stuList = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
+    teacherStudents.forEach(s => {
+      const row = el('div', { style: 'display:flex; align-items:center; gap:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px' });
+      row.appendChild(el('div', { style: 'font-weight:600; flex:1' }, s.name));
+      if (s.nationality) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, s.nationality));
+      if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
+      stuList.appendChild(row);
     });
-    rosterPanel.appendChild(studentChips);
+    rosterPanel.appendChild(stuList);
   }
   root.appendChild(rosterPanel);
 
@@ -1368,7 +1405,15 @@ function renderAdmin() {
 
   const head = el('div', { class: 'row-between' });
   head.appendChild(el('h2', {}, '👑 관리자 대시보드'));
-  head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => showTeacherModal() }, '+ 교사 추가'));
+  const headBtns = el('div', { style: 'display:flex; gap:8px' });
+  const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
+  headBtns.appendChild(el('button', {
+    class: 'btn btn-sm',
+    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}`,
+    onClick: showApiKeyModal
+  }, _pk ? `${_pi.icon} AI 설정 ✓` : '⚠️ AI 설정'));
+  headBtns.appendChild(el('button', { class: 'btn btn-primary', onClick: () => showTeacherModal() }, '+ 교사 추가'));
+  head.appendChild(headBtns);
   panel.appendChild(head);
   panel.appendChild(el('button', { class: 'back-btn', style: 'margin-top:8px', onClick: () => { state.view = 'home'; render(); }}, '← 홈'));
 
