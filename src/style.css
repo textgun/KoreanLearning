@@ -15,7 +15,7 @@
   --success-soft: #d1fae5;
   --danger: #dc2626;
   --danger-soft: #fee2e2;
-  --bg: #f6f8fb;
+  --bg: #1a2332;
   --surface: #ffffff;
   --surface-2: #f8fafc;
   --text: #172033;
@@ -32,8 +32,8 @@ body {
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34rem),
-    linear-gradient(180deg, #fbfcff 0%, var(--bg) 48%, #eef3f9 100%);
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 34rem),
+    linear-gradient(180deg, #1e2a3d 0%, #1a2332 50%, #141c2b 100%);
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 16px;
   line-height: 1.55;
