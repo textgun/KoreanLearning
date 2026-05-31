@@ -304,6 +304,11 @@ function parseJSONSafe(text) {
   }
 }
 
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function validateExtractedText(pdfText) {
   if (!pdfText || !pdfText.trim()) {
     return 'PDF에서 텍스트를 추출하지 못했습니다. 이미지 기반(스캔) PDF는 지원되지 않습니다. 직접 입력을 이용하세요.';
@@ -437,9 +442,12 @@ function showApiKeyModal() {
     const currentModel = getModel(selectedProvider);
 
     // 안내 문구
-    const desc = el('p', { style: 'color:#64748b; font-size:0.88rem; margin-bottom:12px; line-height:1.5' });
+    const desc = el('p', { style: 'color:#64748b; font-size:0.88rem; margin-bottom:8px; line-height:1.5' });
     desc.textContent = 'API 키는 이 기기의 localStorage에만 저장되며 외부로 전송되지 않습니다.';
+    const warn = el('p', { style: 'color:#92400e; background:#fef3c7; border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:12px; line-height:1.5' });
+    warn.textContent = '⚠️ 공용 PC·공유 브라우저에서는 키가 노출될 수 있습니다. 수업 후 반드시 삭제하세요.';
     modal.appendChild(desc);
+    modal.appendChild(warn);
 
     // API 키 입력
     modal.appendChild(el('label', { style: 'font-size:0.9rem; font-weight:600; margin-bottom:5px; display:block' }, `${info.icon} ${info.name} API 키`));
@@ -676,6 +684,7 @@ function renderTeacherCreate() {
 
   opts.append(pdfOpt, manualOpt);
   panel.appendChild(opts);
+  panel.appendChild(el('p', { style: 'font-size:0.82rem; color:#92400e; background:#fef3c7; border-radius:8px; padding:10px 12px; margin-top:10px; line-height:1.5' }, '⚠️ PDF 내용은 선택한 AI 서비스(Gemini·OpenAI·Anthropic 등) 서버로 전송됩니다. 개인정보·민감 자료가 포함된 경우 업로드 전 확인하세요.'));
   panel.appendChild(el('div', { id: 'pdf-status', class: 'loading hidden' }));
   root.appendChild(panel);
   return root;
@@ -1093,7 +1102,8 @@ async function autoTranslateVocab(v) {
   try {
     const prompt = `For the Korean word "${v.word}", return ONLY JSON: {"romanization":"...","emoji":"X","translations":{"en":"...","zh":"...","ja":"...","th":"...","es":"...","vi":"..."}} - romanization with hyphens, ONE emoji.`;
     const text = await callAI(prompt);
-    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    const parsed = parseJSONSafe(text);
+    if (!parsed) throw new Error('AI 응답을 파싱할 수 없습니다.');
     v.romanization = parsed.romanization;
     v.emoji = parsed.emoji;
     v.translations = parsed.translations;
@@ -1116,7 +1126,8 @@ async function bulkTranslateVocab(unit) {
       const list = chunk.map((v, idx) => `${idx + 1}. ${v.word}`).join('\n');
       const prompt = `For each Korean word below, return JSON array. Each item: {"r":"romanization","e":"emoji","t":{"en":"...","zh":"...","ja":"...","th":"...","es":"...","vi":"...","ne":"...","hi":"..."}}\n\nWords:\n${list}\n\nReturn ONLY a JSON array of ${chunk.length} items in same order.`;
       const text = await callAI(prompt);
-      const arr = JSON.parse(text.replace(/```json|```/g, '').trim());
+      const arr = parseJSONSafe(text);
+      if (!Array.isArray(arr)) { console.warn('bulkTranslate: 파싱 실패, 건너뜀'); continue; }
       chunk.forEach((v, idx) => {
         const it = arr[idx];
         if (!it) return;
@@ -1153,7 +1164,8 @@ async function bulkTranslateGrammar(unit) {
 
 한국어 학습자를 위해 간결하고 명확하게 번역하세요.`;
       const text = await callAI(prompt);
-      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+      const parsed = parseJSONSafe(text);
+      if (!parsed) { console.warn('bulkTranslateGrammar: 파싱 실패, 건너뜀'); continue; }
       ['en','zh','ja','th','es','vi','ne','hi'].forEach(lang => {
         if (!g.explanation[lang] && parsed[lang]) g.explanation[lang] = parsed[lang];
       });
@@ -1336,7 +1348,8 @@ function renderStudentSelect() {
     const grid = el('div', { class: 'mode-grid' });
     state.students.forEach(name => {
       const card = el('div', { class: 'mode-card', onClick: () => enterStudent(name) });
-      card.innerHTML = `<div class="icon">🧑‍🎓</div><h3>${name}</h3>`;
+      card.appendChild(el('div', { class: 'icon' }, '🧑‍🎓'));
+      card.appendChild(el('h3', {}, name));
       grid.appendChild(card);
     });
     panel.appendChild(grid);
@@ -1366,7 +1379,9 @@ function renderStudent() {
     const grid = el('div', { class: 'unit-grid' });
     state.units.forEach((u, i) => {
       const tile = el('div', { class: 'unit-tile', onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
-      tile.innerHTML = `<div class="num">${i + 1}</div><div class="title">${u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')}</div><div class="progress">${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈</div>`;
+      tile.appendChild(el('div', { class: 'num' }, String(i + 1)));
+      tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
+      tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
       grid.appendChild(tile);
     });
     panel.appendChild(grid);
@@ -1460,14 +1475,9 @@ function startActivity(activity) {
 /* =========================================================
    GAMES
    ========================================================= */
-function advanceStudent() {
-  if (state.game && state.students.length > 1)
-    state.game.currentStudentIdx = (state.game.currentStudentIdx + 1) % state.students.length;
-}
-
 function initGame(activity) {
   const unit = state.units.find(u => u.id === state.currentUnitId);
-  state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0, currentStudentIdx: 0 };
+  state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0 };
   const g = state.game;
 
   if (activity === 'flashcard') {
@@ -1506,17 +1516,26 @@ function generateQuizQuestions(vocab) {
   });
 }
 
+function findPatternBlankIdx(words, pattern) {
+  // 패턴에서 핵심 조사/어미 추출 (예: ~에서 → 에서, -었/았 → 었)
+  const core = pattern.replace(/^[~\-]/, '').replace(/\s*\(.*\)/, '').split('/')[0].trim();
+  if (core.length >= 2) {
+    const idx = words.findIndex(w => w.replace(/[.,!?]/, '').endsWith(core));
+    if (idx >= 0) return idx;
+  }
+  return Math.floor(words.length / 2);
+}
+
 function generateFillBlankQuestions(unit) {
   const qs = [];
   unit.grammar.forEach(g => {
     (g.examples || []).forEach(ex => {
       const words = ex.ko.split(' ');
       if (words.length < 2) return;
-      const idx = Math.floor(words.length / 2);
+      const idx = findPatternBlankIdx(words, g.pattern);
       const answer = words[idx].replace(/[.,!?]/g, '');
       if (!answer) return;
       const display = words.map((w, i) => i === idx ? '___' : w).join(' ');
-      // Generate 3 distractors from other words in unit
       const allWords = [];
       unit.grammar.forEach(gg => (gg.examples || []).forEach(e => e.ko.split(' ').forEach(w => {
         const cleaned = w.replace(/[.,!?]/g, '');
@@ -1600,9 +1619,12 @@ function renderFlashcardGame() {
   const area = el('div', { class: 'fc-area' + (g.flipped ? ' flipped' : '') });
   const inner = el('div', { class: 'fc-inner' });
   const front = el('div', { class: 'fc-face' });
-  front.innerHTML = `<div class="fc-emoji">${card.emoji}</div><div class="fc-word">${card.word}</div><div class="fc-roman">${card.romanization || ''}</div>`;
+  front.appendChild(el('div', { class: 'fc-emoji' }, card.emoji));
+  front.appendChild(el('div', { class: 'fc-word' }, card.word));
+  front.appendChild(el('div', { class: 'fc-roman' }, card.romanization || ''));
   const back = el('div', { class: 'fc-face fc-back' });
-  back.innerHTML = `<div class="fc-meaning">${getTranslation(card.translations)}</div><div class="fc-roman" style="margin-top:14px">${card.word} · ${card.romanization || ''}</div>`;
+  back.appendChild(el('div', { class: 'fc-meaning' }, getTranslation(card.translations)));
+  back.appendChild(el('div', { class: 'fc-roman', style: 'margin-top:14px' }, `${card.word} · ${card.romanization || ''}`));
   inner.append(front, back);
   area.appendChild(inner);
   area.onclick = () => { g.flipped = !g.flipped; render(); };
@@ -1632,7 +1654,9 @@ function renderQuizGame() {
   root.appendChild(tbar);
 
   const qbox = el('div', { class: 'quiz-question' });
-  qbox.innerHTML = `<div class="quiz-emoji">${q.target.emoji}</div><div class="quiz-word">${q.target.word}</div><div class="quiz-prompt">${q.target.romanization || ''}</div>`;
+  qbox.appendChild(el('div', { class: 'quiz-emoji' }, q.target.emoji));
+  qbox.appendChild(el('div', { class: 'quiz-word' }, q.target.word));
+  qbox.appendChild(el('div', { class: 'quiz-prompt' }, q.target.romanization || ''));
   root.appendChild(qbox);
 
   const opts = el('div', { class: 'quiz-options', id: 'quizopts' });
@@ -1672,7 +1696,6 @@ function answerQuiz(selected, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast('아쉬워요', 'danger');
   }
-  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1400);
 }
 
@@ -1730,7 +1753,13 @@ function renderFillBlankGame() {
   if (!q) { showResult(); return el('div'); }
   const root = el('div');
   const sentence = el('div', { class: 'quiz-question' });
-  sentence.innerHTML = `<div class="quiz-sentence">${q.display.replace('___', '<span class="quiz-blank">___</span>')}</div><div class="quiz-hint">💡 ${q.en}</div>`;
+  const sentenceDiv = el('div', { class: 'quiz-sentence' });
+  q.display.split('___').forEach((part, i, arr) => {
+    sentenceDiv.appendChild(document.createTextNode(part));
+    if (i < arr.length - 1) sentenceDiv.appendChild(el('span', { class: 'quiz-blank' }, '___'));
+  });
+  sentence.appendChild(sentenceDiv);
+  sentence.appendChild(el('div', { class: 'quiz-hint' }, `💡 ${q.en}`));
   root.appendChild(sentence);
 
   const opts = el('div', { class: 'quiz-options', id: 'fbopts' });
@@ -1757,7 +1786,6 @@ function answerFillBlank(selected, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`오답: ${q.answer}`, 'danger');
   }
-  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1500);
 }
 
@@ -1808,7 +1836,8 @@ function renderOXGame() {
   if (!q) { showResult(); return el('div'); }
   const root = el('div');
   const box = el('div', { class: 'ox-sentence' });
-  box.innerHTML = `<div>${q.sentence}</div><div class="text-muted" style="margin-top:10px; font-size:0.95rem">힌트: ${q.en}</div>`;
+  box.appendChild(el('div', {}, q.sentence));
+  box.appendChild(el('div', { class: 'text-muted', style: 'margin-top:10px; font-size:0.95rem' }, `힌트: ${q.en}`));
   root.appendChild(box);
   const btns = el('div', { class: 'ox-buttons' });
   btns.appendChild(el('button', { class: 'ox-btn o', onClick: () => answerOX(true, q) }, '⭕'));
@@ -1828,7 +1857,6 @@ function answerOX(userAns, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(q.correct ? '⭕ 정답!' : '❌ 정답!', 'danger');
   }
-  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1300);
 }
 
@@ -1840,9 +1868,14 @@ function renderPdfQuizGame() {
   const root = el('div');
 
   const sentence = el('div', { class: 'quiz-question' });
-  const questionHtml = q.question.replace(/_+/, '<span class="quiz-blank">___</span>');
+  const pdfSentDiv = el('div', { class: 'quiz-sentence' });
+  q.question.split(/_+/).forEach((part, i, arr) => {
+    pdfSentDiv.appendChild(document.createTextNode(part));
+    if (i < arr.length - 1) pdfSentDiv.appendChild(el('span', { class: 'quiz-blank' }, '___'));
+  });
+  sentence.appendChild(pdfSentDiv);
   const hint = getTranslation(q.hint, '');
-  sentence.innerHTML = `<div class="quiz-sentence">${questionHtml}</div>` + (hint ? `<div class="quiz-hint">💡 ${hint}</div>` : '');
+  if (hint) sentence.appendChild(el('div', { class: 'quiz-hint' }, `💡 ${hint}`));
   root.appendChild(sentence);
 
   const opts = el('div', { class: 'quiz-options', id: 'pdfopts' });
@@ -1869,7 +1902,6 @@ function answerPdfQuiz(idx, q) {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`오답: ${q.options[q.correct]}`, 'danger');
   }
-  advanceStudent();
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1700);
 }
 
