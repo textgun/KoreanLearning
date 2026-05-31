@@ -143,6 +143,7 @@ let state = {
   currentUnitId: null,
   currentActivity: null,
   currentStudent: null,
+  adminTeacherId: null,
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
 };
@@ -257,7 +258,52 @@ async function loadStudentStats(name) {
 async function loadAll() {
   await migrateFromLegacy();
   await loadTeacher();
+  await loadMaster();
   state.stats = defaultStats();
+}
+
+/* =========================================================
+   MASTER ADMIN STORAGE
+   ========================================================= */
+const MASTER_KEY = 'korean_master_v1';
+const NATIONALITIES = ['중국', '베트남', '일본', '태국', '몽골', '필리핀', '인도네시아', '우즈베키스탄', '네팔', '캄보디아', '키르기스스탄', '미국', '기타'];
+
+let masterState = { teachers: [] };
+
+function syncStudentsFromMaster() {
+  const all = [];
+  masterState.teachers.forEach(t => (t.students || []).forEach(s => { if (!all.includes(s.name)) all.push(s.name); }));
+  if (all.length > 0) state.students = all;
+}
+
+async function loadMaster() {
+  try {
+    const r = await window.storage.get(MASTER_KEY);
+    if (r && r.value) {
+      const data = JSON.parse(r.value);
+      masterState.teachers = data.teachers || [];
+      syncStudentsFromMaster();
+    }
+  } catch (e) { console.warn('Master load failed:', e); }
+}
+
+async function saveMaster() {
+  try {
+    await window.storage.set(MASTER_KEY, JSON.stringify(masterState));
+    syncStudentsFromMaster();
+    await persistTeacher();
+  } catch (e) { console.warn('Master save failed:', e); }
+}
+
+async function loadStudentsProgress(names) {
+  const cache = {};
+  await Promise.all(names.map(async name => {
+    try {
+      const r = await window.storage.get(studentKey(name));
+      cache[name] = (r && r.value) ? (JSON.parse(r.value).stats || defaultStats()) : defaultStats();
+    } catch (e) { cache[name] = defaultStats(); }
+  }));
+  return cache;
 }
 
 /* =========================================================
@@ -367,6 +413,7 @@ function render() {
   const map = {
     'home': renderHome, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
+    'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
     'student-select': renderStudentSelect,
     'student': renderStudent, 'student-unit': renderStudentUnit,
     'student-activity': renderStudentActivity, 'student-result': renderStudentResult
@@ -550,7 +597,10 @@ function renderHome() {
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
   studentCard.innerHTML = '<div class="icon">🎓</div><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임으로 한국어 배우기</p>';
 
-  grid.append(teacherCard, studentCard);
+  const adminCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'admin'; render(); }});
+  adminCard.innerHTML = '<div class="icon">👑</div><h3>관리자</h3><p>Master Admin</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">교사 · 학생 · 진도 관리</p>';
+
+  grid.append(teacherCard, studentCard, adminCard);
   root.appendChild(grid);
 
   return root;
@@ -590,40 +640,22 @@ function renderTeacher() {
   }
   root.appendChild(panel);
 
-  // Student roster management
+  // Student roster (read-only — managed by master admin)
   const rosterPanel = el('div', { class: 'panel' });
-  rosterPanel.appendChild(el('h3', {}, '🧑‍🎓 학생 명단 관리'));
-  rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:10px' }, '학생 모드 진입 시 이름을 선택해 개인 학습 기록이 저장됩니다.'));
-
-  const studentChips = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px' });
-  state.students.forEach((name, i) => {
-    const chip = el('div', { style: 'display:flex; align-items:center; gap:6px; background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' });
-    chip.appendChild(el('span', {}, name));
-    chip.appendChild(el('button', {
-      style: 'background:none; border:none; cursor:pointer; color:#7c3aed; font-size:1rem; padding:0; line-height:1',
-      onClick: () => { state.students.splice(i, 1); persistTeacher(); render(); }
-    }, '✕'));
-    studentChips.appendChild(chip);
-  });
-  rosterPanel.appendChild(studentChips);
-
-  const rosterAddRow = el('div', { style: 'display:flex; gap:8px' });
-  const rosterInput = el('input', {
-    type: 'text',
-    placeholder: '이름 입력 / Enter name',
-    style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box;'
-  });
-  const doRosterAdd = () => {
-    const name = rosterInput.value.trim();
-    if (!name || state.students.includes(name)) return;
-    state.students.push(name);
-    persistTeacher();
-    render();
-  };
-  rosterInput.addEventListener('keydown', e => { if (e.key === 'Enter') doRosterAdd(); });
-  rosterAddRow.appendChild(rosterInput);
-  rosterAddRow.appendChild(el('button', { class: 'btn btn-primary', onClick: doRosterAdd }, '+ 추가'));
-  rosterPanel.appendChild(rosterAddRow);
+  const rosterHead = el('div', { class: 'row-between' });
+  rosterHead.appendChild(el('h3', { style: 'margin-bottom:0' }, '🧑‍🎓 학생 명단'));
+  rosterHead.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, '👑 관리자에서 수정'));
+  rosterPanel.appendChild(rosterHead);
+  if (state.students.length === 0) {
+    rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-top:10px; font-size:0.9rem' }, '관리자 대시보드에서 교사를 등록하고 학생을 추가하세요.'));
+  } else {
+    const studentChips = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-top:10px' });
+    state.students.forEach(name => {
+      const chip = el('div', { style: 'background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' }, name);
+      studentChips.appendChild(chip);
+    });
+    rosterPanel.appendChild(studentChips);
+  }
   root.appendChild(rosterPanel);
 
   // Danger zone - reset all data
@@ -1323,6 +1355,245 @@ function renderTeacherProgress() {
 
   root.appendChild(panel);
   return root;
+}
+
+/* =========================================================
+   MASTER ADMIN
+   ========================================================= */
+let _adminProgressCache = null;
+
+function renderAdmin() {
+  const root = el('div');
+  const panel = el('div', { class: 'panel' });
+
+  const head = el('div', { class: 'row-between' });
+  head.appendChild(el('h2', {}, '👑 관리자 대시보드'));
+  head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => showTeacherModal() }, '+ 교사 추가'));
+  panel.appendChild(head);
+  panel.appendChild(el('button', { class: 'back-btn', style: 'margin-top:8px', onClick: () => { state.view = 'home'; render(); }}, '← 홈'));
+
+  const teaching = masterState.teachers.filter(t => t.status === 'teaching').length;
+  const training = masterState.teachers.filter(t => t.status === 'training').length;
+  const totalStudents = masterState.teachers.reduce((s, t) => s + (t.students || []).length, 0);
+
+  const summary = el('div', { style: 'display:flex; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin:16px 0' });
+  summary.appendChild(el('div', { style: 'font-weight:600' }, `👩‍🏫 교사 ${masterState.teachers.length}명`));
+  summary.appendChild(el('div', { style: 'font-weight:600; color:#059669' }, `🟢 수업중 ${teaching}명`));
+  summary.appendChild(el('div', { style: 'font-weight:600; color:#d97706' }, `🟡 교육중 ${training}명`));
+  summary.appendChild(el('div', { style: 'font-weight:600' }, `🧑‍🎓 전체 학생 ${totalStudents}명`));
+  panel.appendChild(summary);
+
+  if (masterState.teachers.length === 0) {
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '등록된 교사가 없습니다. + 교사 추가 버튼으로 시작하세요.'));
+  } else {
+    masterState.teachers.forEach(teacher => {
+      const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer', onClick: () => { state.adminTeacherId = teacher.id; _adminProgressCache = null; state.view = 'admin-teacher'; render(); }});
+      const hdr = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:8px' });
+      hdr.appendChild(el('div', { style: 'font-weight:700; font-size:1.05rem; flex:1' }, `👩‍🏫 ${teacher.name}`));
+      const sc = teacher.status === 'teaching';
+      hdr.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:600` }, sc ? '🟢 수업중' : '🟡 교육중'));
+      card.appendChild(hdr);
+      const meta = el('div', { style: 'font-size:0.88rem; color:#64748b; display:flex; gap:16px; flex-wrap:wrap' });
+      if (teacher.phone) meta.appendChild(el('span', {}, `📞 ${teacher.phone}`));
+      meta.appendChild(el('span', {}, `🧑‍🎓 학생 ${(teacher.students || []).length}명`));
+      if (teacher.note) meta.appendChild(el('span', {}, `📝 ${teacher.note}`));
+      card.appendChild(meta);
+      panel.appendChild(card);
+    });
+  }
+
+  root.appendChild(panel);
+  return root;
+}
+
+function renderAdminTeacherDetail() {
+  const teacher = masterState.teachers.find(t => t.id === state.adminTeacherId);
+  if (!teacher) { state.view = 'admin'; render(); return el('div'); }
+
+  const root = el('div');
+  const panel = el('div', { class: 'panel' });
+
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'admin'; render(); }}, '← 교사 목록'));
+
+  const head = el('div', { class: 'row-between', style: 'margin-top:10px; flex-wrap:wrap; gap:8px' });
+  head.appendChild(el('h2', { style: 'margin-bottom:0' }, `👩‍🏫 ${teacher.name}`));
+  const headBtns = el('div', { style: 'display:flex; gap:8px' });
+  headBtns.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => showTeacherModal(teacher) }, '✏️ 수정'));
+  headBtns.appendChild(el('button', { class: 'btn btn-danger btn-sm', onClick: () => deleteTeacher(teacher.id) }, '🗑️ 삭제'));
+  head.appendChild(headBtns);
+  panel.appendChild(head);
+
+  const sc = teacher.status === 'teaching';
+  const info = el('div', { style: 'display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; margin-bottom:16px; align-items:center' });
+  info.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:4px 12px; font-weight:600; font-size:0.9rem` }, sc ? '🟢 수업진행중' : '🟡 교육중'));
+  info.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: async () => { teacher.status = sc ? 'training' : 'teaching'; await saveMaster(); render(); }}, `↔ ${sc ? '교육중으로' : '수업중으로'} 변경`));
+  if (teacher.phone) info.appendChild(el('div', { style: 'color:#64748b; font-size:0.9rem' }, `📞 ${teacher.phone}`));
+  if (teacher.note) info.appendChild(el('div', { style: 'color:#64748b; font-size:0.9rem' }, `📝 ${teacher.note}`));
+  panel.appendChild(info);
+
+  const stuHead = el('div', { class: 'row-between', style: 'margin-bottom:12px' });
+  stuHead.appendChild(el('h3', { style: 'margin-bottom:0' }, `🧑‍🎓 학생 명단 (${(teacher.students || []).length}명)`));
+  const stuBtns = el('div', { style: 'display:flex; gap:8px' });
+  stuBtns.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { _adminProgressCache = null; render(); }}, '🔄 새로고침'));
+  stuBtns.appendChild(el('button', { class: 'btn btn-primary btn-sm', onClick: () => showAddStudentModal(teacher) }, '+ 학생 추가'));
+  stuHead.appendChild(stuBtns);
+  panel.appendChild(stuHead);
+
+  if (!teacher.students || teacher.students.length === 0) {
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '등록된 학생이 없습니다.'));
+    root.appendChild(panel);
+    return root;
+  }
+
+  if (!_adminProgressCache) {
+    panel.appendChild(el('div', { style: 'text-align:center; padding:24px; color:#64748b' }, '📊 진도 불러오는 중...'));
+    root.appendChild(panel);
+    loadStudentsProgress(teacher.students.map(s => s.name)).then(cache => { _adminProgressCache = cache; render(); });
+    return root;
+  }
+
+  const rows = el('div', { style: 'display:flex; flex-direction:column; gap:8px' });
+  teacher.students.forEach((student, idx) => {
+    const stats = _adminProgressCache[student.name] || defaultStats();
+    const pct = calcOverallProgress(stats.bestScores);
+    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px; gap:10px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
+
+    const nameDiv = el('div');
+    nameDiv.appendChild(el('div', { style: 'font-weight:600; font-size:0.95rem' }, student.name));
+    const metaStr = [student.nationality, student.age ? student.age + '세' : ''].filter(Boolean).join(' · ');
+    if (metaStr) nameDiv.appendChild(el('div', { style: 'font-size:0.82rem; color:#64748b; margin-top:2px' }, metaStr));
+    row.appendChild(nameDiv);
+
+    const lvl = el('div', { style: 'text-align:center; font-size:0.82rem' });
+    lvl.appendChild(el('div', { style: 'font-weight:700; color:#5b21b6' }, `Lv.${stats.level}`));
+    lvl.appendChild(el('div', { style: 'color:#92400e' }, `${stats.xp}XP`));
+    row.appendChild(lvl);
+
+    const prog = el('div');
+    const barWrap = el('div', { style: 'background:#e2e8f0; border-radius:99px; height:8px; overflow:hidden; margin-bottom:2px' });
+    const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#e2e8f0';
+    barWrap.appendChild(el('div', { style: `background:${barColor}; width:${pct}%; height:100%; border-radius:99px` }));
+    prog.appendChild(barWrap);
+    prog.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; text-align:center' }, `${pct}%`));
+    row.appendChild(prog);
+
+    row.appendChild(el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:4px 6px; font-size:0.85rem', onClick: async () => {
+      const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
+      if (!ok) return;
+      teacher.students.splice(idx, 1);
+      await saveMaster();
+      _adminProgressCache = null;
+      render();
+    }}, '🗑️'));
+
+    rows.appendChild(row);
+  });
+  panel.appendChild(rows);
+
+  root.appendChild(panel);
+  return root;
+}
+
+function showTeacherModal(existing = null) {
+  return new Promise(resolve => {
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop' });
+    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); }};
+    const modal = el('div', { class: 'modal', style: 'max-width:440px' });
+    modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, existing ? '✏️ 교사 정보 수정' : '👩‍🏫 교사 추가'));
+
+    const field = (label, input) => { modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label)); modal.appendChild(input); };
+
+    const nameIn = el('input', { type: 'text', placeholder: '홍길동', style: 'width:100%; margin-bottom:12px' });
+    if (existing) nameIn.value = existing.name;
+    field('이름 *', nameIn);
+
+    const phoneIn = el('input', { type: 'text', placeholder: '010-0000-0000', style: 'width:100%; margin-bottom:12px' });
+    if (existing) phoneIn.value = existing.phone || '';
+    field('연락처', phoneIn);
+
+    const statusSel = el('select', { style: 'width:100%; margin-bottom:12px' });
+    [['teaching', '🟢 수업진행중'], ['training', '🟡 교육중']].forEach(([v, l]) => {
+      const opt = el('option', { value: v }, l);
+      if (existing && existing.status === v) opt.setAttribute('selected', '');
+      statusSel.appendChild(opt);
+    });
+    field('상태', statusSel);
+
+    const noteIn = el('input', { type: 'text', placeholder: '담당 반, 특이사항 등', style: 'width:100%; margin-bottom:16px' });
+    if (existing) noteIn.value = existing.note || '';
+    field('메모', noteIn);
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); }}, '취소'));
+    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      const name = nameIn.value.trim();
+      if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+      if (existing) {
+        existing.name = name; existing.phone = phoneIn.value.trim();
+        existing.status = statusSel.value; existing.note = noteIn.value.trim();
+      } else {
+        masterState.teachers.push({ id: Date.now(), name, phone: phoneIn.value.trim(), status: statusSel.value, note: noteIn.value.trim(), students: [] });
+      }
+      await saveMaster();
+      root.innerHTML = ''; resolve(true); render();
+    }}, existing ? '저장' : '추가'));
+    modal.appendChild(btns);
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    setTimeout(() => nameIn.focus(), 50);
+  });
+}
+
+function showAddStudentModal(teacher) {
+  return new Promise(resolve => {
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop' });
+    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); }};
+    const modal = el('div', { class: 'modal', style: 'max-width:400px' });
+    modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, '🧑‍🎓 학생 추가'));
+
+    const field = (label, input) => { modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label)); modal.appendChild(input); };
+
+    const nameIn = el('input', { type: 'text', placeholder: '김철수', style: 'width:100%; margin-bottom:12px' });
+    field('이름 *', nameIn);
+
+    const natSel = el('select', { style: 'width:100%; margin-bottom:12px' });
+    NATIONALITIES.forEach(n => natSel.appendChild(el('option', { value: n }, n)));
+    field('국적', natSel);
+
+    const ageIn = el('input', { type: 'number', placeholder: '25', min: '1', max: '99', style: 'width:100%; margin-bottom:16px' });
+    field('나이', ageIn);
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); }}, '취소'));
+    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      const name = nameIn.value.trim();
+      if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+      if (!teacher.students) teacher.students = [];
+      if (teacher.students.some(s => s.name === name)) { toast('이미 등록된 이름입니다', 'danger'); return; }
+      teacher.students.push({ name, nationality: natSel.value, age: parseInt(ageIn.value) || null });
+      await saveMaster();
+      _adminProgressCache = null;
+      root.innerHTML = ''; resolve(true); render();
+    }}, '추가'));
+    modal.appendChild(btns);
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    setTimeout(() => nameIn.focus(), 50);
+  });
+}
+
+async function deleteTeacher(id) {
+  const teacher = masterState.teachers.find(t => t.id === id);
+  const ok = await showConfirm('교사 삭제', `"${teacher?.name}" 교사를 삭제하시겠습니까?\n\n학생 명단도 함께 삭제됩니다.`, true);
+  if (!ok) return;
+  masterState.teachers = masterState.teachers.filter(t => t.id !== id);
+  await saveMaster();
+  state.view = 'admin';
+  render();
 }
 
 /* =========================================================
