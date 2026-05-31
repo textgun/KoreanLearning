@@ -142,6 +142,7 @@ let state = {
   units: [],
   currentUnitId: null,
   currentActivity: null,
+  currentStudent: null,
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
 };
@@ -149,8 +150,11 @@ let state = {
 /* =========================================================
    STORAGE
    ========================================================= */
-let _saveTimer = null, _saving = false, _storageOK = true;
-const STORAGE_KEY = 'korean_app_v1';
+let _savingTeacher = false, _savingStudent = false, _storageOK = true;
+const TEACHER_KEY = 'korean_teacher_v1';
+const LEGACY_KEY = 'korean_app_v1';
+function studentKey(name) { return 'korean_student_' + encodeURIComponent(name) + '_v1'; }
+function defaultStats() { return { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} }; }
 
 async function _withRetry(fn, attempts = 3) {
   let lastErr;
@@ -161,32 +165,71 @@ async function _withRetry(fn, attempts = 3) {
   throw lastErr;
 }
 
-async function _doSave() {
-  if (_saving) return;
-  _saving = true;
+async function _doSaveTeacher() {
+  if (_savingTeacher) return;
+  _savingTeacher = true;
   try {
-    const payload = JSON.stringify({ units: state.units, stats: state.stats, settings: { language: state.language, students: state.students }});
-    await _withRetry(() => window.storage.set(STORAGE_KEY, payload), 3);
+    const payload = JSON.stringify({ units: state.units, settings: { language: state.language, students: state.students } });
+    await _withRetry(() => window.storage.set(TEACHER_KEY, payload), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
   } catch (e) {
     if (_storageOK) { _storageOK = false; toast('⚠️ 자동저장 일시 중단', 'accent'); }
-    console.warn('Save failed:', e.message || e);
-  } finally { _saving = false; }
+    console.warn('Teacher save failed:', e.message || e);
+  } finally { _savingTeacher = false; }
+}
+
+async function _doSaveStudent() {
+  if (!state.currentStudent || _savingStudent) return;
+  _savingStudent = true;
+  try {
+    const payload = JSON.stringify({ stats: state.stats });
+    await _withRetry(() => window.storage.set(studentKey(state.currentStudent), payload), 3);
+  } catch (e) {
+    console.warn('Student save failed:', e.message || e);
+  } finally { _savingStudent = false; }
+}
+
+let _teacherTimer = null, _studentTimer = null;
+
+async function persistTeacher(immediate = false) {
+  if (_teacherTimer) { clearTimeout(_teacherTimer); _teacherTimer = null; }
+  if (immediate) await _doSaveTeacher();
+  else _teacherTimer = setTimeout(_doSaveTeacher, 700);
+}
+
+async function persistStudent(immediate = false) {
+  if (!state.currentStudent) return;
+  if (_studentTimer) { clearTimeout(_studentTimer); _studentTimer = null; }
+  if (immediate) await _doSaveStudent();
+  else _studentTimer = setTimeout(_doSaveStudent, 700);
 }
 
 async function persistAll(immediate = false) {
-  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-  if (immediate) await _doSave();
-  else _saveTimer = setTimeout(_doSave, 700);
+  await persistTeacher(immediate);
+  await persistStudent(immediate);
 }
 
-async function loadAll() {
+async function migrateFromLegacy() {
   try {
-    const r = await _withRetry(() => window.storage.get(STORAGE_KEY), 3);
+    const r = await window.storage.get(LEGACY_KEY);
+    if (!r || !r.value) return;
+    const data = JSON.parse(r.value);
+    if (data.units && data.units.length > 0) {
+      state.units = data.units;
+      state.language = (data.settings && data.settings.language) || 'en';
+      state.students = (data.settings && data.settings.students) || [];
+      await _doSaveTeacher();
+      try { await window.storage.delete(LEGACY_KEY); } catch {}
+    }
+  } catch (e) { console.warn('Migration failed:', e); }
+}
+
+async function loadTeacher() {
+  try {
+    const r = await _withRetry(() => window.storage.get(TEACHER_KEY), 3);
     if (r && r.value) {
       const data = JSON.parse(r.value);
       state.units = data.units && data.units.length > 0 ? data.units : [SAMPLE_UNIT];
-      state.stats = data.stats || { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
       state.language = (data.settings && data.settings.language) || 'en';
       state.students = (data.settings && data.settings.students) || [];
       return;
@@ -197,7 +240,24 @@ async function loadAll() {
     setTimeout(() => toast('⚠️ 저장소 접근 오류 - 메모리에 임시 저장됩니다', 'accent'), 800);
   }
   if (!state.units || state.units.length === 0) state.units = [SAMPLE_UNIT];
-  if (!state.stats) state.stats = { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
+}
+
+async function loadStudentStats(name) {
+  try {
+    const r = await _withRetry(() => window.storage.get(studentKey(name)), 3);
+    if (r && r.value) {
+      const data = JSON.parse(r.value);
+      state.stats = data.stats || defaultStats();
+      return;
+    }
+  } catch (e) { console.warn('Student stats load failed:', e); }
+  state.stats = defaultStats();
+}
+
+async function loadAll() {
+  await migrateFromLegacy();
+  await loadTeacher();
+  state.stats = defaultStats();
 }
 
 /* =========================================================
@@ -301,7 +361,9 @@ function render() {
   const v = state.view;
   const map = {
     'home': renderHome, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
-    'teacher-edit': renderTeacherEdit, 'student': renderStudent, 'student-unit': renderStudentUnit,
+    'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
+    'student-select': renderStudentSelect,
+    'student': renderStudent, 'student-unit': renderStudentUnit,
     'student-activity': renderStudentActivity, 'student-result': renderStudentResult
   };
   if (map[v]) app.appendChild(map[v]());
@@ -310,32 +372,39 @@ function render() {
 function renderTopbar() {
   const bar = el('div', { class: 'topbar' });
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
-  const stats = el('div', { class: 'stats-row' });
+  const statsRow = el('div', { class: 'stats-row' });
   if (state.view !== 'home') {
-    stats.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '🏠'));
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '🏠'));
   }
   const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
-  stats.appendChild(el('button', {
+  statsRow.appendChild(el('button', {
     class: 'btn btn-sm',
     style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}`,
     onClick: showApiKeyModal
   }, _pk ? `${_pi.icon} ${_pi.name} ✓` : '⚠️ AI 설정'));
   const lang = getLangInfo();
-  stats.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
-  stats.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
-  stats.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
-  if (state.stats.streak > 0) stats.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
-  bar.appendChild(stats);
+  statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
+  if (state.currentStudent) {
+    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#ede9fe; color:#5b21b6' }, `🧑‍🎓 ${state.currentStudent}`));
+    statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
+    statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
+    if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
+  }
+  bar.appendChild(statsRow);
   return bar;
 }
 
 function goHome() {
+  if (state.currentStudent) {
+    state.stats.streak = 0;
+    persistStudent(true);
+    state.currentStudent = null;
+    state.stats = defaultStats();
+  }
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
   state.game = null;
-  state.stats.streak = 0;
-  persistAll(true);
   render();
 }
 
@@ -465,51 +534,12 @@ function renderHome() {
   langPanel.appendChild(langGrid);
   root.appendChild(langPanel);
 
-  // Student roster
-  const namePanel = el('div', { class: 'home-lang-panel', style: 'margin-top:12px' });
-  namePanel.appendChild(el('h3', {}, '🧑‍🎓 학생 명단 (Students)'));
-  namePanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:10px' }, '게임 중 학생 이름이 문제와 함께 표시됩니다.'));
-
-  const studentList = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px' });
-  state.students.forEach((name, i) => {
-    const chip = el('div', { style: 'display:flex; align-items:center; gap:6px; background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' });
-    chip.appendChild(el('span', {}, name));
-    chip.appendChild(el('button', {
-      style: 'background:none; border:none; cursor:pointer; color:#7c3aed; font-size:1rem; padding:0; line-height:1',
-      onClick: () => { state.students.splice(i, 1); persistAll(); render(); }
-    }, '✕'));
-    studentList.appendChild(chip);
-  });
-  namePanel.appendChild(studentList);
-
-  const addRow = el('div', { style: 'display:flex; gap:8px' });
-  const addInput = el('input', {
-    type: 'text',
-    placeholder: '이름 입력 / Enter name',
-    style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box;'
-  });
-  const doAdd = () => {
-    const name = addInput.value.trim();
-    if (!name || state.students.includes(name)) return;
-    state.students.push(name);
-    persistAll();
-    render();
-  };
-  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
-  addRow.appendChild(addInput);
-  addRow.appendChild(el('button', {
-    class: 'btn btn-primary',
-    onClick: doAdd
-  }, '+ 추가'));
-  namePanel.appendChild(addRow);
-  root.appendChild(namePanel);
-
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher'; render(); }});
   teacherCard.innerHTML = '<div class="icon">📚✏️</div><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
-  const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student'; render(); }});
+  const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
   studentCard.innerHTML = '<div class="icon">🎓</div><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임으로 한국어 배우기</p>';
 
   grid.append(teacherCard, studentCard);
@@ -526,7 +556,10 @@ function renderTeacher() {
   const panel = el('div', { class: 'panel' });
   const head = el('div', { class: 'row-between' });
   head.appendChild(el('h2', {}, '단원 관리'));
-  head.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { state.view = 'teacher-create'; render(); }}, '+ 새 단원'));
+  const headBtns = el('div', { style: 'display:flex; gap:8px' });
+  headBtns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => { _progressCache = null; state.view = 'teacher-progress'; render(); }}, '📊 진도 현황'));
+  headBtns.appendChild(el('button', { class: 'btn btn-primary', onClick: () => { state.view = 'teacher-create'; render(); }}, '+ 새 단원'));
+  head.appendChild(headBtns);
   panel.appendChild(head);
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF 업로드 또는 직접 입력으로 단원을 만들고 편집할 수 있습니다.'));
 
@@ -549,6 +582,42 @@ function renderTeacher() {
   }
   root.appendChild(panel);
 
+  // Student roster management
+  const rosterPanel = el('div', { class: 'panel' });
+  rosterPanel.appendChild(el('h3', {}, '🧑‍🎓 학생 명단 관리'));
+  rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:10px' }, '학생 모드 진입 시 이름을 선택해 개인 학습 기록이 저장됩니다.'));
+
+  const studentChips = el('div', { style: 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px' });
+  state.students.forEach((name, i) => {
+    const chip = el('div', { style: 'display:flex; align-items:center; gap:6px; background:#ede9fe; border-radius:20px; padding:6px 14px; font-size:0.95rem; font-weight:600; color:#5b21b6' });
+    chip.appendChild(el('span', {}, name));
+    chip.appendChild(el('button', {
+      style: 'background:none; border:none; cursor:pointer; color:#7c3aed; font-size:1rem; padding:0; line-height:1',
+      onClick: () => { state.students.splice(i, 1); persistTeacher(); render(); }
+    }, '✕'));
+    studentChips.appendChild(chip);
+  });
+  rosterPanel.appendChild(studentChips);
+
+  const rosterAddRow = el('div', { style: 'display:flex; gap:8px' });
+  const rosterInput = el('input', {
+    type: 'text',
+    placeholder: '이름 입력 / Enter name',
+    style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box;'
+  });
+  const doRosterAdd = () => {
+    const name = rosterInput.value.trim();
+    if (!name || state.students.includes(name)) return;
+    state.students.push(name);
+    persistTeacher();
+    render();
+  };
+  rosterInput.addEventListener('keydown', e => { if (e.key === 'Enter') doRosterAdd(); });
+  rosterAddRow.appendChild(rosterInput);
+  rosterAddRow.appendChild(el('button', { class: 'btn btn-primary', onClick: doRosterAdd }, '+ 추가'));
+  rosterPanel.appendChild(rosterAddRow);
+  root.appendChild(rosterPanel);
+
   // Danger zone - reset all data
   const dangerPanel = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger)' });
   dangerPanel.appendChild(el('h3', { style: 'color:var(--danger)' }, '⚠️ 데이터 초기화'));
@@ -558,15 +627,17 @@ function renderTeacher() {
     if (!ok1) return;
     const ok2 = await showConfirm('마지막 확인', '정말로 처음부터 다시 시작하시겠습니까?', true);
     if (!ok2) return;
-    try { await window.storage.delete(STORAGE_KEY); } catch (e) {}
+    try { await window.storage.delete(TEACHER_KEY); } catch (e) {}
     state.units = [SAMPLE_UNIT];
-    state.stats = { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
+    state.stats = defaultStats();
     state.language = 'en';
+    state.students = [];
+    state.currentStudent = null;
     state.view = 'home';
     state.currentUnitId = null;
     state.currentActivity = null;
     state.game = null;
-    await persistAll(true);
+    await persistTeacher(true);
     toast('초기화 완료. 처음부터 시작합니다.', 'success');
     render();
   }}, '🗑️ 모든 데이터 초기화하기'));
@@ -1116,9 +1187,173 @@ async function saveWithAutoTranslate(unit) {
 }
 
 /* =========================================================
+   TEACHER PROGRESS
+   ========================================================= */
+const BADGE_NAMES = { perfect: '완벽주의자', combo10: '🔥 10연속', xp500: '⭐ XP 500', level5: '🏆 Lv.5 달성' };
+let _progressCache = null;
+
+async function loadAllStudentProgress() {
+  const cache = {};
+  await Promise.all(state.students.map(async name => {
+    try {
+      const r = await window.storage.get(studentKey(name));
+      cache[name] = (r && r.value) ? (JSON.parse(r.value).stats || defaultStats()) : defaultStats();
+    } catch (e) { cache[name] = defaultStats(); }
+  }));
+  return cache;
+}
+
+function getUnitActivities(unit) {
+  const acts = [];
+  if (unit.vocabulary.length > 0) {
+    acts.push('flashcard');
+    if (unit.vocabulary.length >= 4) { acts.push('quiz'); acts.push('matching'); }
+  }
+  if (unit.grammar.length > 0) { acts.push('fillblank'); acts.push('sentorder'); acts.push('oxquiz'); }
+  if ((unit.quizzes || []).length > 0) acts.push('pdfquiz');
+  return acts;
+}
+
+function calcUnitProgress(bestScores, unit) {
+  const acts = getUnitActivities(unit);
+  if (acts.length === 0) return null;
+  const done = acts.filter(act => (bestScores[`${unit.id}_${act}`] || 0) > 0).length;
+  return { done, total: acts.length, pct: Math.round(done / acts.length * 100) };
+}
+
+function calcOverallProgress(bestScores) {
+  let done = 0, total = 0;
+  state.units.forEach(unit => {
+    const p = calcUnitProgress(bestScores, unit);
+    if (p) { done += p.done; total += p.total; }
+  });
+  return total > 0 ? Math.round(done / total * 100) : 0;
+}
+
+function renderProgressBar(pct, height = '10px') {
+  const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#e2e8f0';
+  const wrap = el('div', { style: `background:#e2e8f0; border-radius:99px; height:${height}; overflow:hidden; flex:1` });
+  wrap.appendChild(el('div', { style: `background:${color}; width:${pct}%; height:100%; border-radius:99px` }));
+  return wrap;
+}
+
+function renderTeacherProgress() {
+  const root = el('div');
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { _progressCache = null; state.view = 'teacher'; render(); }}, '← 교사 메뉴'));
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '📊 학생 진도 현황'));
+
+  if (state.students.length === 0) {
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '교사 메뉴 → 학생 명단에서 이름을 추가해주세요.'));
+    root.appendChild(panel);
+    return root;
+  }
+
+  if (!_progressCache) {
+    panel.appendChild(el('div', { style: 'text-align:center; padding:32px; color:#64748b; font-size:1.05rem' }, '📊 학생 데이터 불러오는 중...'));
+    root.appendChild(panel);
+    loadAllStudentProgress().then(cache => { _progressCache = cache; render(); });
+    return root;
+  }
+
+  const avgPct = Math.round(
+    state.students.reduce((sum, name) => sum + calcOverallProgress((_progressCache[name] || defaultStats()).bestScores), 0) / state.students.length
+  );
+  const summary = el('div', { style: 'display:flex; align-items:center; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin-bottom:20px' });
+  summary.appendChild(el('div', { style: 'font-weight:600' }, `👥 ${state.students.length}명`));
+  summary.appendChild(el('div', { style: 'font-weight:600' }, `📈 평균 ${avgPct}%`));
+  summary.appendChild(el('div', { style: 'font-weight:600' }, `📚 단원 ${state.units.length}개`));
+  summary.appendChild(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-left:auto', onClick: () => { _progressCache = null; render(); }}, '🔄 새로고침'));
+  panel.appendChild(summary);
+
+  state.students.forEach(name => {
+    const stats = _progressCache[name] || defaultStats();
+    const overallPct = calcOverallProgress(stats.bestScores);
+
+    const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:14px' });
+
+    const hdr = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap' });
+    hdr.appendChild(el('div', { style: 'font-size:1.1rem; font-weight:700; color:#1e293b; flex:1' }, `🧑‍🎓 ${name}`));
+    hdr.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `⭐ Lv.${stats.level}`));
+    hdr.appendChild(el('div', { style: 'background:#fef3c7; color:#92400e; border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `✨ ${stats.xp} XP`));
+    card.appendChild(hdr);
+
+    const overallRow = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:14px' });
+    overallRow.appendChild(el('div', { style: 'font-size:0.88rem; color:#64748b; white-space:nowrap' }, '전체 진도'));
+    overallRow.appendChild(renderProgressBar(overallPct));
+    overallRow.appendChild(el('div', { style: 'font-weight:700; font-size:0.95rem; min-width:40px; text-align:right' }, `${overallPct}%`));
+    card.appendChild(overallRow);
+
+    if (state.units.length > 0) {
+      const grid = el('div', { style: 'display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:8px' });
+      state.units.forEach(unit => {
+        const p = calcUnitProgress(stats.bestScores, unit);
+        const pct = p ? p.pct : 0;
+        const label = unit.title.replace(/^\d+(?:단원|단)?\s*[-·]\s*/, '') || unit.title;
+        const chip = el('div', { style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px' });
+        chip.appendChild(el('div', { style: 'font-size:0.82rem; font-weight:600; color:#374151; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' }, label));
+        const chipBar = el('div', { style: 'background:#e2e8f0; border-radius:99px; height:6px; overflow:hidden; margin-bottom:3px' });
+        chipBar.appendChild(el('div', { style: `background:${pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#cbd5e1'}; width:${pct}%; height:100%; border-radius:99px` }));
+        chip.appendChild(chipBar);
+        chip.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b' }, p ? `${p.done}/${p.total} (${pct}%)` : '활동 없음'));
+        grid.appendChild(chip);
+      });
+      card.appendChild(grid);
+    }
+
+    if (stats.badges && stats.badges.length > 0) {
+      const badgeNames = stats.badges.map(id => BADGE_NAMES[id] || id).join('  ');
+      card.appendChild(el('div', { style: 'margin-top:10px; font-size:0.82rem; color:#64748b' }, `🏅 ${badgeNames}`));
+    }
+
+    panel.appendChild(card);
+  });
+
+  root.appendChild(panel);
+  return root;
+}
+
+/* =========================================================
    STUDENT
    ========================================================= */
+function renderStudentSelect() {
+  const root = el('div');
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 뒤로'));
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '🧑‍🎓 학생 선택'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하세요. 학습 기록은 개인별로 저장됩니다.'));
+
+  const enterStudent = async (name) => {
+    state.currentStudent = name;
+    await loadStudentStats(name);
+    state.view = 'student';
+    render();
+  };
+
+  if (state.students.length === 0) {
+    panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '교사 모드 → 학생 명단에서 이름을 추가해주세요.'));
+  } else {
+    const grid = el('div', { class: 'mode-grid' });
+    state.students.forEach(name => {
+      const card = el('div', { class: 'mode-card', onClick: () => enterStudent(name) });
+      card.innerHTML = `<div class="icon">🧑‍🎓</div><h3>${name}</h3>`;
+      grid.appendChild(card);
+    });
+    panel.appendChild(grid);
+  }
+
+  panel.appendChild(el('button', {
+    class: 'btn btn-ghost btn-block',
+    style: 'margin-top:16px',
+    onClick: () => enterStudent('게스트')
+  }, '👤 게스트로 시작'));
+
+  root.appendChild(panel);
+  return root;
+}
+
 function renderStudent() {
+  if (!state.currentStudent) { state.view = 'student-select'; render(); return el('div'); }
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('h2', {}, '📚 단원 선택 (Choose a Unit)'));
@@ -1332,9 +1567,8 @@ function renderStudentActivity() {
   gh.appendChild(progress);
   gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
   if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `🔥 ${state.game.combo}x`));
-  if (state.students.length > 0) {
-    const name = state.students[state.game.currentStudentIdx % state.students.length];
-    gh.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${name}의 차례`));
+  if (state.currentStudent) {
+    gh.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${state.currentStudent}`));
   }
   root.appendChild(gh);
 
@@ -1353,6 +1587,7 @@ async function exitGame() {
   state.view = 'student-unit';
   state.game = null;
   state.stats.streak = 0;
+  persistStudent();
   render();
 }
 
