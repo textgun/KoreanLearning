@@ -457,6 +457,9 @@ textarea:focus-visible,
 
 input[type="text"],
 input[type="password"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
 input[type="file"],
 select,
 textarea {
