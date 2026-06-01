@@ -1013,7 +1013,7 @@ function renderAdminTeacherDetail() {
   teacher.students.forEach((student, idx) => {
     const stats = _adminProgressCache[student.name] || defaultStats();
     const pct = calcOverallProgress(stats.bestScores);
-    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px; gap:10px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
+    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px 36px; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
 
     const nameDiv = el('div');
     nameDiv.appendChild(el('div', { style: 'font-weight:600; font-size:0.95rem' }, student.name));
@@ -1034,7 +1034,11 @@ function renderAdminTeacherDetail() {
     prog.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; text-align:center' }, `${pct}%`));
     row.appendChild(prog);
 
-    const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:4px 6px; font-size:0.85rem; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
+    const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: () => showEditStudentModal(teacher, student, idx) });
+    editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
+    row.appendChild(editStuBtn);
+
+    const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
       const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
       if (!ok) return;
       teacher.students.splice(idx, 1);
@@ -1139,6 +1143,58 @@ function showAddStudentModal(teacher) {
       root.innerHTML = ''; resolve(true); render();
     }}, '추가'));
     modal.appendChild(btns);
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    setTimeout(() => nameIn.focus(), 50);
+  });
+}
+
+function showEditStudentModal(teacher, student, idx) {
+  return new Promise(resolve => {
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop' });
+    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); } };
+    const modal = el('div', { class: 'modal', style: 'max-width:400px' });
+    modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, '✏️ 학생 정보 수정'));
+
+    const field = (label, input) => {
+      modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label));
+      modal.appendChild(input);
+    };
+
+    const nameIn = el('input', { type: 'text', style: 'width:100%; margin-bottom:12px' });
+    nameIn.value = student.name;
+    field('이름 *', nameIn);
+
+    const natSel = el('select', { style: 'width:100%; margin-bottom:12px' });
+    NATIONALITIES.forEach(n => {
+      const opt = el('option', { value: n }, n);
+      if (n === student.nationality) opt.setAttribute('selected', '');
+      natSel.appendChild(opt);
+    });
+    field('국적', natSel);
+
+    const ageIn = el('input', { type: 'number', min: '1', max: '99', style: 'width:100%; margin-bottom:16px' });
+    ageIn.value = student.age || '';
+    field('나이', ageIn);
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); } }, '취소'));
+    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      const name = nameIn.value.trim();
+      if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+      const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
+      if (duplicate) { toast('이미 등록된 이름입니다', 'danger'); return; }
+      teacher.students[idx] = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
+      await saveMaster();
+      _adminProgressCache = null;
+      root.innerHTML = '';
+      resolve(true);
+      render();
+    } }, '저장'));
+    modal.appendChild(btns);
+
     backdrop.appendChild(modal);
     root.appendChild(backdrop);
     setTimeout(() => nameIn.focus(), 50);
