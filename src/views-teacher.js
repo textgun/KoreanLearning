@@ -537,7 +537,8 @@ async function autoFillEmoji(v, emojiInput) {
   if (!v.word || (v.emoji && v.emoji !== '📝') || !getApiKey(getProvider())) return;
   try {
     const text = await callAI(`Korean word: "${v.word}". Reply with ONLY one emoji. Nothing else.`);
-    const emoji = [...text.trim()].slice(0, 2).join('');
+    const match = text.trim().match(/\p{Extended_Pictographic}/u);
+    const emoji = match ? match[0] : null;
     if (emoji) {
       v.emoji = emoji;
       if (emojiInput) emojiInput.value = emoji;
