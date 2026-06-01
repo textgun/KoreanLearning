@@ -31,7 +31,7 @@ function render() {
   }
 
   // 교사 세션 없이 교사 대시보드 진입 시 홈으로
-  if (state.currentUser && v.startsWith('teacher') && v !== 'teacher-select' && !state.currentTeacher) {
+  if (state.currentUser && v.startsWith('teacher') && !state.currentTeacher) {
     state.view = 'home';
     v = 'home';
   }
@@ -39,7 +39,7 @@ function render() {
   const map = {
     'loading': renderLoadingPage,
     'login': renderLoginPage, 'signup': renderSignupPage, 'forgot-password': renderForgotPassword,
-    'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
+    'home': renderHome, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
     'student-select': renderStudentSelect,
