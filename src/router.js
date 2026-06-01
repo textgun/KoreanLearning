@@ -22,7 +22,7 @@ function render() {
   app.appendChild(renderTopbar());
   
   let v = state.view;
-  const authViews = ['login', 'signup', 'forgot-password'];
+  const authViews = ['login', 'signup', 'forgot-password', 'loading'];
 
   // 미로그인 시 인증 화면으로 이동
   if (!state.currentUser && !authViews.includes(v)) {
@@ -37,6 +37,7 @@ function render() {
   }
 
   const map = {
+    'loading': renderLoadingPage,
     'login': renderLoginPage, 'signup': renderSignupPage, 'forgot-password': renderForgotPassword,
     'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,

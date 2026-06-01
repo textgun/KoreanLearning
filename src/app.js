@@ -8,6 +8,8 @@
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
     auth.onAuthStateChanged(async (fbUser) => {
       if (fbUser) {
+        state.view = 'loading';
+        render();
         await onAuthLogin(fbUser);
       } else {
         state.currentUser = null;

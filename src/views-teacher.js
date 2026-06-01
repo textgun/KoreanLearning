@@ -2,6 +2,22 @@
    VIEWS - TEACHER & ADMIN MODES
    ========================================================= */
 
+/* ---------- 로딩 ---------- */
+function renderLoadingPage() {
+  const root = el('div', { style: 'display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; gap:16px' });
+  const spinner = el('div', { style: 'width:48px; height:48px; border:4px solid #e0e7ff; border-top-color:var(--primary); border-radius:50%; animation:spin 0.8s linear infinite' });
+  root.appendChild(spinner);
+  root.appendChild(el('p', { style: 'color:var(--muted); font-size:1rem' }, '데이터를 불러오는 중...'));
+  // 스피너 CSS
+  if (!document.getElementById('spin-style')) {
+    const s = document.createElement('style');
+    s.id = 'spin-style';
+    s.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(s);
+  }
+  return root;
+}
+
 /* ---------- 로그인 ---------- */
 function renderLoginPage() {
   const root = el('div', { style: 'max-width:420px; margin:60px auto' });

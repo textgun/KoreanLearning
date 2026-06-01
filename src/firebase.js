@@ -96,7 +96,12 @@ async function fbDeleteStudent(firestoreId) {
 
 async function onAuthLogin(fbUser) {
   try {
-    const teacher = await fbGetTeacher(fbUser.uid);
+    // 교사 정보 + 전체 교사 목록 병렬 조회 (순차 → 동시)
+    const [teacher, allTeachers] = await Promise.all([
+      fbGetTeacher(fbUser.uid),
+      fbGetAllTeachers()
+    ]);
+
     if (!teacher) {
       toast('계정 데이터를 찾을 수 없습니다. 관리자에게 문의하세요.', 'danger');
       await auth.signOut();
@@ -107,7 +112,7 @@ async function onAuthLogin(fbUser) {
     state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
 
     if (teacher.isAdmin) {
-      const allTeachers = await fbGetAllTeachers();
+      // 이미 allTeachers 조회 완료 — 학생만 추가 조회
       const teacherIds = allTeachers.map(t => t.id);
       const allStudents = await fbGetAllStudents(teacherIds);
       masterState.teachers = allTeachers.map(t => ({
@@ -116,6 +121,7 @@ async function onAuthLogin(fbUser) {
       }));
       state.view = 'admin';
     } else {
+      // 일반 교사: 본인 학생만 조회
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };
       state.currentTeacher = teacherWithStudents;
