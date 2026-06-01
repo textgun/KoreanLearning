@@ -52,6 +52,10 @@ $Output = $Output.Replace("</body>", "$BundleScriptTag`r`n</body>")
 $OutPath = Join-Path $DistDir "index.html"
 [System.IO.File]::WriteAllText($OutPath, $Output, [System.Text.Encoding]::UTF8)
 
+# Root-level korean_learning_app.html 복사 자동 동기화
+Copy-Item -Path $OutPath -Destination "korean_learning_app.html" -Force
+
 $FileInfo = Get-Item $OutPath
 $SizeKb = $FileInfo.Length / 1024
 Write-Host "Written file size: " $FileInfo.Length " bytes (" $SizeKb " KB)"
+Write-Host "Auto-synchronized to: korean_learning_app.html"
