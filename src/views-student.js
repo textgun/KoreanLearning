@@ -317,15 +317,6 @@ function renderFlashcardGame() {
   const area = el('div', { class: 'fc-area' + (g.flipped ? ' flipped' : '') });
   const inner = el('div', { class: 'fc-inner' });
   const front = el('div', { class: 'fc-face' });
-  
-  // TTS 발음 듣기 아이콘 추가
-  const speakBtn = el('button', {
-    class: 'btn btn-ghost btn-sm',
-    style: 'position:absolute; top:12px; right:12px; font-size:1.2rem; padding:4px 8px; border-radius:8px',
-    onClick: (e) => { e.stopPropagation(); speak(card.word); }
-  }, '🔊');
-  front.appendChild(speakBtn);
-
   front.appendChild(el('div', { class: 'fc-emoji' }, card.emoji));
   front.appendChild(el('div', { class: 'fc-word' }, card.word));
   front.appendChild(el('div', { class: 'fc-roman' }, card.romanization || ''));
@@ -362,16 +353,6 @@ function renderQuizGame() {
   root.appendChild(tbar);
 
   const qbox = el('div', { class: 'quiz-question' });
-  
-  // TTS 발음 재생 지원
-  const speakBtn = el('button', {
-    class: 'btn btn-ghost btn-sm',
-    style: 'position:absolute; top:12px; right:12px; font-size:1.1rem; padding:4px 8px; border-radius:8px',
-    onClick: () => speak(q.target.word)
-  }, '🔊');
-  qbox.style.position = 'relative';
-  qbox.appendChild(speakBtn);
-
   qbox.appendChild(el('div', { class: 'quiz-emoji' }, q.target.emoji));
   qbox.appendChild(el('div', { class: 'quiz-word' }, q.target.word));
   qbox.appendChild(el('div', { class: 'quiz-prompt' }, q.target.romanization || ''));
@@ -445,11 +426,6 @@ function renderMatchingGame() {
 function selectMatchCard(c) {
   const g = state.game;
   if (g.matched.has(c.pair) || g.selected.includes(c) || g.selected.length >= 2) return;
-  
-  // 한국어 단어 클릭 시 TTS 음성 안내
-  if (c.type === 'ko') {
-    speak(c.text);
-  }
 
   g.selected.push(c);
   if (g.selected.length === 2) {
@@ -546,7 +522,6 @@ function submitSO() {
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(18); state.stats.streak++;
     toast(`완벽! +${points}`, 'success');
-    speak(q.original); // 정답 확인 시 한국어 전체 문장 발음 듣기 재생
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(`오답: ${q.original}`, 'danger');
@@ -578,7 +553,6 @@ function answerOX(userAns, q) {
     g.score += points; g.correct++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
     addXP(8); state.stats.streak++;
     toast(`정답! +${points}`, 'success');
-    speak(q.sentence); // 정답 확인 시 한국어 전체 문장 발음 듣기 재생
   } else {
     g.wrong++; g.combo = 0; state.stats.streak = 0;
     toast(q.correct ? '⭕ 정답!' : '❌ 정답!', 'danger');
