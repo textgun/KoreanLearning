@@ -28,7 +28,7 @@ function renderHome() {
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = masterState.teachers.length > 0 ? 'teacher-select' : 'teacher'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
@@ -50,24 +50,51 @@ function renderTeacherSelect() {
   title.appendChild(document.createTextNode('교사 선택'));
   panel.appendChild(title);
   
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '본인의 이름을 선택하세요.'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하거나, 처음이라면 이름을 입력해 바로 시작하세요.'));
 
-  const grid = el('div', { class: 'mode-grid' });
-  masterState.teachers.forEach(teacher => {
-    const card = el('div', { class: 'mode-card', onClick: () => {
-      state.currentTeacher = teacher;
-      state.students = (teacher.students || []).map(s => s.name);
-      state.view = 'teacher';
-      render();
-    }});
-    const sc = teacher.status === 'teaching';
-    card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
-    card.appendChild(el('h3', {}, teacher.name));
-    card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
-    card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
-    grid.appendChild(card);
-  });
-  panel.appendChild(grid);
+  const enterTeacher = (teacher) => {
+    state.currentTeacher = teacher;
+    state.students = (teacher.students || []).map(s => s.name);
+    state.view = 'teacher';
+    render();
+  };
+
+  // 기존 교사 목록
+  if (masterState.teachers.length > 0) {
+    const grid = el('div', { class: 'mode-grid', style: 'margin-bottom:20px' });
+    masterState.teachers.forEach(teacher => {
+      const card = el('div', { class: 'mode-card', onClick: () => enterTeacher(teacher) });
+      const sc = teacher.status === 'teaching';
+      card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
+      card.appendChild(el('h3', {}, teacher.name));
+      card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
+      card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
+      grid.appendChild(card);
+    });
+    panel.appendChild(grid);
+    panel.appendChild(el('div', { style: 'border-top:1px solid #e2e8f0; margin-bottom:18px' }));
+  }
+
+  // 신규 교사 등록
+  panel.appendChild(el('p', { style: 'font-weight:600; font-size:0.95rem; margin-bottom:10px' }, '처음 사용하시나요?'));
+  const newRow = el('div', { style: 'display:flex; gap:8px' });
+  const nameIn = el('input', { type: 'text', placeholder: '이름을 입력하세요', style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box' });
+  const startBtn = el('button', { class: 'btn btn-primary', onClick: async () => {
+    const name = nameIn.value.trim();
+    if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+    if (masterState.teachers.some(t => t.name === name)) {
+      toast('이미 등록된 이름입니다. 위 목록에서 선택하세요', 'accent');
+      return;
+    }
+    const newTeacher = { id: Date.now(), name, phone: '', status: 'teaching', note: '', students: [] };
+    masterState.teachers.push(newTeacher);
+    await saveMaster();
+    toast(`✅ ${name} 선생님 등록됨`, 'success');
+    enterTeacher(newTeacher);
+  }}, '시작하기');
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') startBtn.click(); });
+  newRow.append(nameIn, startBtn);
+  panel.appendChild(newRow);
 
   root.appendChild(panel);
   return root;
