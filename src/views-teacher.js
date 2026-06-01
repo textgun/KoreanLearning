@@ -2,6 +2,204 @@
    VIEWS - TEACHER & ADMIN MODES
    ========================================================= */
 
+/* ---------- 공통 헬퍼 ---------- */
+function authField(label, inputEl) {
+  const wrap = el('div', { style: 'display:flex; flex-direction:column; gap:4px' });
+  wrap.appendChild(el('label', { style: 'font-size:0.88rem; font-weight:600; color:#374151' }, label));
+  wrap.appendChild(inputEl);
+  return wrap;
+}
+
+/* ---------- 로그인 ---------- */
+function renderLoginPage() {
+  const root = el('div', { style: 'max-width:420px; margin:40px auto' });
+  const panel = el('div', { class: 'panel' });
+
+  const ttl = el('h2', { style: 'text-align:center; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:24px; height:24px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('로그인'));
+  panel.appendChild(ttl);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:24px' }, '한국어 학습 도구에 오신 것을 환영합니다'));
+
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%' });
+  const pwIn = el('input', { type: 'password', placeholder: '비밀번호', style: 'width:100%' });
+
+  const form = el('div', { style: 'display:flex; flex-direction:column; gap:14px' });
+  form.appendChild(authField('이메일', emailIn));
+  form.appendChild(authField('비밀번호', pwIn));
+
+  const loginBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:4px', onClick: async () => {
+    const email = emailIn.value.trim();
+    const pw = pwIn.value;
+    if (!email || !pw) { toast('이메일과 비밀번호를 입력하세요', 'danger'); return; }
+    const user = findUserByEmail(email);
+    if (!user) { toast('등록되지 않은 이메일입니다', 'danger'); return; }
+    const hash = await hashPassword(pw);
+    if (hash !== user.passwordHash) { toast('비밀번호가 맞지 않습니다', 'danger'); return; }
+    state.currentUser = user;
+    state.language = user.language || 'ko';
+    if (user.role === 'teacher') {
+      const t = masterState.teachers.find(t => t.name === user.name);
+      if (t) { state.currentTeacher = t; state.students = (t.students || []).map(s => s.name); }
+      state.view = 'teacher';
+    } else {
+      state.currentStudent = user.name;
+      await loadStudentStats(user.name);
+      state.view = 'student';
+    }
+    render();
+    toast(`👋 어서 오세요, ${user.name}님!`, 'success');
+  }}, '로그인');
+  form.appendChild(loginBtn);
+  panel.appendChild(form);
+
+  const links = el('div', { style: 'display:flex; justify-content:space-between; margin-top:16px; font-size:0.88rem' });
+  links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'signup'; render(); } }, '회원가입'));
+  links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'forgot-password'; render(); } }, '비밀번호 찾기'));
+  panel.appendChild(links);
+
+  root.appendChild(panel);
+  pwIn.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
+  return root;
+}
+
+/* ---------- 회원가입 ---------- */
+function renderSignupPage() {
+  const root = el('div', { style: 'max-width:500px; margin:30px auto' });
+  const panel = el('div', { class: 'panel' });
+
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
+  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:22px; height:22px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('회원가입'));
+  panel.appendChild(ttl);
+
+  const nameIn    = el('input', { type: 'text',     placeholder: '홍길동',              style: 'width:100%' });
+  const phoneIn   = el('input', { type: 'tel',      placeholder: '010-0000-0000',      style: 'width:100%' });
+  const emailIn   = el('input', { type: 'email',    placeholder: 'example@email.com',  style: 'width:100%' });
+  const addrIn    = el('input', { type: 'text',     placeholder: '서울시 강남구 ...',   style: 'width:100%' });
+  const pwIn      = el('input', { type: 'password', placeholder: '6자 이상',           style: 'width:100%' });
+  const pwCfmIn   = el('input', { type: 'password', placeholder: '비밀번호 재입력',    style: 'width:100%' });
+  const hintIn    = el('input', { type: 'text',     placeholder: '예: 첫째 아이 이름', style: 'width:100%' });
+
+  const roleSel = el('select', { style: 'width:100%' });
+  roleSel.appendChild(el('option', { value: 'student' }, '🎓 학생'));
+  roleSel.appendChild(el('option', { value: 'teacher' }, '📚 교사'));
+
+  const langSel = el('select', { style: 'width:100%' });
+  LANGS.forEach(l => langSel.appendChild(el('option', { value: l.code }, `${l.flag} ${l.name}`)));
+
+  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px; margin-top:8px' });
+  form.appendChild(authField('이름 *', nameIn));
+  form.appendChild(authField('연락처 *', phoneIn));
+  form.appendChild(authField('이메일 *', emailIn));
+  form.appendChild(authField('주소', addrIn));
+  form.appendChild(authField('역할 *', roleSel));
+  form.appendChild(authField('학습 언어 (번역 언어)', langSel));
+  form.appendChild(authField('비밀번호 * (6자 이상)', pwIn));
+  form.appendChild(authField('비밀번호 확인 *', pwCfmIn));
+  form.appendChild(authField('비밀번호 힌트 (분실 시 표시)', hintIn));
+
+  form.appendChild(el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:4px', onClick: async () => {
+    const name  = nameIn.value.trim();
+    const phone = phoneIn.value.trim();
+    const email = emailIn.value.trim();
+    const pw    = pwIn.value;
+    const pwCfm = pwCfmIn.value;
+    const role  = roleSel.value;
+    const lang  = langSel.value;
+    const hint  = hintIn.value.trim();
+
+    if (!name || !phone || !email || !pw) { toast('필수 항목을 모두 입력하세요', 'danger'); return; }
+    if (pw.length < 6)  { toast('비밀번호는 6자 이상이어야 합니다', 'danger'); return; }
+    if (pw !== pwCfm)   { toast('비밀번호가 일치하지 않습니다', 'danger'); return; }
+    if (findUserByEmail(email)) { toast('이미 사용 중인 이메일입니다', 'danger'); return; }
+
+    const hash = await hashPassword(pw);
+    const newUser = { id: Date.now(), name, phone, email, address: addrIn.value.trim(), role, language: lang, passwordHash: hash, passwordHint: hint, createdAt: Date.now() };
+    usersState.users.push(newUser);
+    await saveUsers();
+
+    // 교사인 경우 masterState에 자동 등록
+    if (role === 'teacher' && !masterState.teachers.find(t => t.name === name)) {
+      masterState.teachers.push({ id: Date.now(), name, phone, status: 'teaching', note: '', students: [] });
+      await saveMaster();
+    }
+
+    toast('✅ 가입 완료! 로그인해주세요', 'success');
+    state.view = 'login';
+    render();
+  } }, '가입하기'));
+
+  panel.appendChild(form);
+  root.appendChild(panel);
+  return root;
+}
+
+/* ---------- 비밀번호 찾기 ---------- */
+function renderForgotPassword() {
+  const root = el('div', { style: 'max-width:420px; margin:40px auto' });
+  const panel = el('div', { class: 'panel' });
+
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
+  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'key', style: 'width:22px; height:22px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('비밀번호 찾기'));
+  panel.appendChild(ttl);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:20px' }, '가입 시 입력한 이름과 이메일을 입력하면 비밀번호 힌트를 확인하고 재설정할 수 있습니다.'));
+
+  const nameIn  = el('input', { type: 'text',  placeholder: '이름',              style: 'width:100%' });
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%' });
+
+  const hintArea = el('div', { style: 'display:none; background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:14px; margin-top:8px' });
+  const resetArea = el('div', { style: 'display:none; margin-top:12px' });
+  const newPwIn  = el('input', { type: 'password', placeholder: '새 비밀번호 (6자 이상)', style: 'width:100%; margin-bottom:10px' });
+  const newPwCfm = el('input', { type: 'password', placeholder: '새 비밀번호 확인',       style: 'width:100%; margin-bottom:10px' });
+  resetArea.appendChild(el('p', { style: 'font-weight:600; margin-bottom:8px' }, '새 비밀번호 설정'));
+  resetArea.appendChild(newPwIn);
+  resetArea.appendChild(newPwCfm);
+
+  let foundUser = null;
+
+  const checkBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px', onClick: () => {
+    const name  = nameIn.value.trim();
+    const email = emailIn.value.trim();
+    if (!name || !email) { toast('이름과 이메일을 입력하세요', 'danger'); return; }
+    const user = findUserByEmail(email);
+    if (!user || user.name !== name) { toast('일치하는 계정을 찾을 수 없습니다', 'danger'); return; }
+    foundUser = user;
+    hintArea.innerHTML = '';
+    hintArea.appendChild(el('p', { style: 'font-weight:700; color:#166534; margin-bottom:4px' }, '✅ 계정 확인됨'));
+    hintArea.appendChild(el('p', { style: 'font-size:0.9rem; color:#374151' }, user.passwordHint ? `💡 힌트: ${user.passwordHint}` : '등록된 힌트가 없습니다.'));
+    hintArea.style.display = 'block';
+    resetArea.style.display = 'block';
+    if (window.lucide) window.lucide.createIcons();
+  }}, '계정 확인');
+
+  const resetBtn = el('button', { class: 'btn btn-success btn-block', onClick: async () => {
+    if (!foundUser) return;
+    const pw = newPwIn.value;
+    if (pw.length < 6) { toast('비밀번호는 6자 이상이어야 합니다', 'danger'); return; }
+    if (pw !== newPwCfm.value) { toast('비밀번호가 일치하지 않습니다', 'danger'); return; }
+    foundUser.passwordHash = await hashPassword(pw);
+    await saveUsers();
+    toast('✅ 비밀번호가 변경됐습니다. 로그인해주세요', 'success');
+    state.view = 'login';
+    render();
+  }}, '비밀번호 재설정');
+  resetArea.appendChild(resetBtn);
+
+  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px' });
+  form.appendChild(authField('이름', nameIn));
+  form.appendChild(authField('이메일', emailIn));
+  form.appendChild(checkBtn);
+  form.appendChild(hintArea);
+  form.appendChild(resetArea);
+  panel.appendChild(form);
+  root.appendChild(panel);
+  return root;
+}
+
 function renderHome() {
   const root = el('div');
 

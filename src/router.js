@@ -3,13 +3,14 @@
    ========================================================= */
 let state = {
   view: 'home',
-  language: 'en',
+  language: 'ko',
   students: [],
   units: [],
   currentUnitId: null,
   currentActivity: null,
   currentStudent: null,
   currentTeacher: null,
+  currentUser: null,
   adminTeacherId: null,
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
@@ -19,8 +20,16 @@ function render() {
   const app = $('#app');
   app.innerHTML = '';
   app.appendChild(renderTopbar());
-  
+
   let v = state.view;
+  const authViews = ['login', 'signup', 'forgot-password'];
+
+  // 로그인 안 된 상태에서 인증 외 페이지 접근 시 로그인으로 이동
+  if (!state.currentUser && !authViews.includes(v)) {
+    state.view = 'login';
+    v = 'login';
+  }
+
   // 교사 세션 없이 교사 대시보드 진입 시 선택 화면으로 리다이렉트
   if (v.startsWith('teacher') && v !== 'teacher-select' && !state.currentTeacher) {
     state.view = 'teacher-select';
@@ -28,6 +37,7 @@ function render() {
   }
 
   const map = {
+    'login': renderLoginPage, 'signup': renderSignupPage, 'forgot-password': renderForgotPassword,
     'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
@@ -37,42 +47,47 @@ function render() {
   };
   if (map[v]) app.appendChild(map[v]());
 
-  // Lucide SVG 아이콘 자동 렌더링 스레드 실행
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function renderTopbar() {
   const bar = el('div', { class: 'topbar' });
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const statsRow = el('div', { class: 'stats-row' });
-  if (state.view !== 'home') {
+  const authViews = ['login', 'signup', 'forgot-password'];
+
+  if (!authViews.includes(state.view) && state.view !== 'home') {
     statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, [
-      el('i', { 'data-lucide': 'home', style: 'width: 16px; height: 16px; display: block;' })
+      el('i', { 'data-lucide': 'home', style: 'width:16px; height:16px; display:block;' })
     ]));
   }
-  const lang = getLangInfo();
-  statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
-  statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, [
-    el('i', { 'data-lucide': 'shield', style: 'margin-right: 4px; width: 15px; height: 15px; vertical-align: middle;' }),
-    '관리자'
-  ]));
-  if (state.currentTeacher) {
+
+  if (state.currentUser) {
+    // 관리자 버튼 (교사만)
+    if (state.currentUser.role === 'teacher') {
+      statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); } }, [
+        el('i', { 'data-lucide': 'shield', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }),
+        '관리자'
+      ]));
+    }
+    // 로그인 유저 정보
+    const roleIcon = state.currentUser.role === 'teacher' ? 'book-open' : 'graduation-cap';
     statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
-      el('i', { 'data-lucide': 'users', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
-      state.currentTeacher.name
+      el('i', { 'data-lucide': roleIcon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
+      state.currentUser.name
+    ]));
+    // 학생 XP/레벨
+    if (state.currentStudent) {
+      statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
+      statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
+      if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
+    }
+    // 로그아웃
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: logout }, [
+      el('i', { 'data-lucide': 'log-out', style: 'width:14px; height:14px; vertical-align:middle;' })
     ]));
   }
-  if (state.currentStudent) {
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#f5f3ff; color:#5b21b6; border-color:#ddd6fe' }, [
-      el('i', { 'data-lucide': 'user', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
-      state.currentStudent
-    ]));
-    statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
-    statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
-    if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
-  }
+
   bar.appendChild(statsRow);
   return bar;
 }
@@ -86,6 +101,19 @@ function goHome() {
   }
   state.currentTeacher = null;
   state.view = 'home';
+  state.currentUnitId = null;
+  state.currentActivity = null;
+  state.game = null;
+  render();
+}
+
+function logout() {
+  if (state.currentStudent) { state.stats.streak = 0; persistStudent(true); }
+  state.currentUser = null;
+  state.currentTeacher = null;
+  state.currentStudent = null;
+  state.stats = defaultStats();
+  state.view = 'login';
   state.currentUnitId = null;
   state.currentActivity = null;
   state.game = null;
@@ -189,7 +217,16 @@ function showLangModal() {
   LANGS.forEach(l => {
     const tile = el('div', {
       class: 'lang-tile' + (state.language === l.code ? ' active' : ''),
-      onClick: () => { state.language = l.code; persistAll(); root.innerHTML = ''; render(); }
+      onClick: () => {
+        state.language = l.code;
+        if (state.currentUser) {
+          state.currentUser.language = l.code;
+          saveUsers();
+        }
+        persistAll();
+        root.innerHTML = '';
+        render();
+      }
     });
     tile.innerHTML = `<span class="flag">${l.flag}</span><div class="name">${l.name}</div>`;
     grid.appendChild(tile);
