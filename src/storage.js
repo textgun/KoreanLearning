@@ -1,6 +1,17 @@
 /* =========================================================
    STORAGE
    ========================================================= */
+// GitHub Pages 환경에서 window.storage 대신 localStorage를 사용하는 폴리필
+if (!window.storage) {
+  window.storage = {
+    get: (key) => Promise.resolve(
+      localStorage.getItem(key) ? { value: localStorage.getItem(key) } : null
+    ),
+    set: (key, value) => Promise.resolve(localStorage.setItem(key, value)),
+    delete: (key) => Promise.resolve(localStorage.removeItem(key))
+  };
+}
+
 let _savingTeacher = false, _savingStudent = false, _storageOK = true;
 const TEACHER_KEY = 'korean_teacher_v1';
 const LEGACY_KEY = 'korean_app_v1';
