@@ -10,22 +10,6 @@ function renderHome() {
   hero.appendChild(el('p', {}, 'Korean Learning App'));
   root.appendChild(hero);
 
-  // Language selector
-  const langPanel = el('div', { class: 'home-lang-panel' });
-  langPanel.appendChild(el('h3', {}, '🌍 학생 언어 선택 (Student\'s Language)'));
-  langPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '수업 시작 전 학생이 사용하는 언어를 선택하세요.'));
-  const langGrid = el('div', { class: 'lang-grid' });
-  LANGS.forEach(l => {
-    const tile = el('div', {
-      class: 'lang-tile' + (state.language === l.code ? ' active' : ''),
-      onClick: () => { state.language = l.code; persistAll(); render(); }
-    });
-    tile.innerHTML = `<span class="flag">${l.flag}</span><div class="name">${l.name}</div>`;
-    langGrid.appendChild(tile);
-  });
-  langPanel.appendChild(langGrid);
-  root.appendChild(langPanel);
-
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
