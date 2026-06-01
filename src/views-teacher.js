@@ -12,7 +12,7 @@ function renderHome() {
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = state.currentTeacher ? 'teacher' : 'teacher-login'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
@@ -21,115 +21,6 @@ function renderHome() {
   grid.append(teacherCard, studentCard);
   root.appendChild(grid);
 
-  return root;
-}
-
-function renderTeacherLogin() {
-  const root = el('div');
-  const panel = el('div', { class: 'panel', style: 'max-width: 460px; margin: 20px auto;' });
-  
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 홈으로'));
-  
-  const title = el('h2', { style: 'margin-top:14px; display:flex; align-items:center; gap:8px; justify-content:center' });
-  title.appendChild(el('i', { 'data-lucide': 'user-check', style: 'width:26px; height:26px; color:var(--primary);' }));
-  title.appendChild(document.createTextNode('교사 로그인 / 등록'));
-  panel.appendChild(title);
-  
-  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px; font-size:0.92rem' }, '선생님의 이름과 연락처를 입력해 주세요. 처음 방문하시는 경우 새로운 계정이 생성됩니다.'));
-  
-  // Fields wrapper
-  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px' });
-  
-  const nameLabel = el('label', { style: 'display:flex; align-items:center; gap:4px' });
-  nameLabel.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--muted);' }));
-  nameLabel.appendChild(document.createTextNode('교사 성함 *'));
-  form.appendChild(nameLabel);
-  
-  const nameIn = el('input', { type: 'text', placeholder: '홍길동', style: 'width:100%' });
-  form.appendChild(nameIn);
-  
-  const phoneLabel = el('label', { style: 'display:flex; align-items:center; gap:4px' });
-  phoneLabel.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px; color:var(--muted);' }));
-  phoneLabel.appendChild(document.createTextNode('연락처 (전화번호) *'));
-  form.appendChild(phoneLabel);
-  
-  const phoneIn = el('input', { type: 'text', placeholder: '010-1234-5678', style: 'width:100%' });
-  form.appendChild(phoneIn);
-  
-  // Dynamic registration area (hidden initially)
-  const regArea = el('div', { style: 'margin-top:12px; padding:14px; border:1px dashed var(--primary); border-radius:10px; background:rgba(79, 70, 229, 0.03); display:none;' });
-  regArea.appendChild(el('p', { style: 'font-weight:700; color:var(--primary); font-size:0.9rem; margin-bottom:8px;' }, '✨ 처음 오셨군요! 초기 상태를 선택해 주세요:'));
-  
-  const statusLabel = el('label', {}, '상태 (Status) *');
-  regArea.appendChild(statusLabel);
-  
-  const statusSel = el('select', { style: 'width:100%; margin-bottom:4px;' });
-  statusSel.appendChild(el('option', { value: 'teaching' }, '🟢 수업 진행 중 (학생 등록 및 편집 가능)'));
-  statusSel.appendChild(el('option', { value: 'training' }, '🟡 교육 중 (조회만 가능)'));
-  regArea.appendChild(statusSel);
-  
-  form.appendChild(regArea);
-  
-  // Submit button
-  const submitBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;' });
-  submitBtn.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:18px; height:18px; color:#fff;' }));
-  submitBtn.appendChild(document.createTextNode('대시보드 로그인'));
-  
-  let isChecking = true; // State to track whether we're checking existence or registering
-  
-  submitBtn.onclick = async () => {
-    const name = nameIn.value.trim();
-    const phone = phoneIn.value.trim();
-    if (!name || !phone) { toast('이름과 연락처를 모두 입력해 주세요', 'danger'); return; }
-    
-    // Check if teacher exists
-    const teacher = masterState.teachers.find(t => t.name === name && t.phone === phone);
-    
-    if (teacher) {
-      // Exist! Log in directly
-      state.currentTeacher = teacher;
-      state.students = (teacher.students || []).map(s => s.name);
-      state.view = 'teacher';
-      await persistTeacher(true);
-      render();
-      toast(`👋 어서 오세요, ${teacher.name} 선생님!`, 'success');
-    } else {
-      if (isChecking) {
-        // Teacher does not exist, show registration area
-        isChecking = false;
-        regArea.style.display = 'block';
-        submitBtn.innerHTML = '';
-        submitBtn.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:18px; height:18px; color:#fff;' }));
-        submitBtn.appendChild(document.createTextNode('교사 프로필 등록 및 시작'));
-        toast('신규 교사로 정보 등록을 진행합니다.', 'accent');
-        nameIn.disabled = true;
-        phoneIn.disabled = true;
-        if (window.lucide) window.lucide.createIcons();
-      } else {
-        // Perform registration
-        const status = statusSel.value;
-        const newTeacher = {
-          id: Date.now(),
-          name,
-          phone,
-          status,
-          note: '',
-          students: []
-        };
-        masterState.teachers.push(newTeacher);
-        await saveMaster();
-        state.currentTeacher = newTeacher;
-        state.students = [];
-        state.view = 'teacher';
-        render();
-        toast('🎉 교사 등록이 성공적으로 완료되었습니다!', 'success');
-      }
-    }
-  };
-  
-  form.appendChild(submitBtn);
-  panel.appendChild(form);
-  root.appendChild(panel);
   return root;
 }
 
@@ -217,6 +108,11 @@ function renderTeacher() {
   aiBtn.appendChild(document.createTextNode(_pk ? ' AI 설정 ✓' : ' ⚠️ AI 설정'));
   headBtns.appendChild(aiBtn);
 
+  const switchBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:flex; align-items:center; gap:4px', onClick: () => { state.currentTeacher = null; state.students = []; state.view = 'teacher-select'; render(); }});
+  switchBtn.appendChild(el('i', { 'data-lucide': 'repeat-2', style: 'width:14px; height:14px;' }));
+  switchBtn.appendChild(document.createTextNode('교사 변경'));
+  headBtns.appendChild(switchBtn);
+
   const progressBtn = el('button', { class: 'btn btn-ghost', style: 'display:flex; align-items:center; gap:6px', onClick: () => { _progressCache = null; state.view = 'teacher-progress'; render(); }});
   progressBtn.appendChild(el('i', { 'data-lucide': 'bar-chart-2', style: 'width:16px; height:16px;' }));
   progressBtn.appendChild(document.createTextNode('진도 현황'));
@@ -286,12 +182,6 @@ function renderTeacher() {
   titleText.appendChild(document.createTextNode('학생 명단'));
   rosterTitle.appendChild(titleText);
   
-  if (!isTraining) {
-    const addStuBtn = el('button', { class: 'btn btn-primary btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showAddStudentModal(state.currentTeacher) });
-    addStuBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:13px; height:13px; color:#fff;' }));
-    addStuBtn.appendChild(document.createTextNode('학생 등록'));
-    rosterTitle.appendChild(addStuBtn);
-  }
   rosterPanel.appendChild(rosterTitle);
   
   const teacherStudents = state.currentTeacher ? (state.currentTeacher.students || []) : [];
