@@ -2,7 +2,7 @@
    STATE & ROUTER
    ========================================================= */
 let state = {
-  view: 'home',
+  view: 'login',
   language: 'en',
   students: [],
   units: [],
@@ -10,6 +10,7 @@ let state = {
   currentActivity: null,
   currentStudent: null,
   currentTeacher: null,
+  currentUser: null,
   adminTeacherId: null,
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
@@ -21,13 +22,22 @@ function render() {
   app.appendChild(renderTopbar());
   
   let v = state.view;
-  // 교사 세션 없이 교사 대시보드 진입 시 선택 화면으로 리다이렉트
-  if (v.startsWith('teacher') && v !== 'teacher-select' && !state.currentTeacher) {
-    state.view = 'teacher-select';
-    v = 'teacher-select';
+  const authViews = ['login', 'signup', 'forgot-password'];
+
+  // 미로그인 시 인증 화면으로 이동
+  if (!state.currentUser && !authViews.includes(v)) {
+    state.view = 'login';
+    v = 'login';
+  }
+
+  // 교사 세션 없이 교사 대시보드 진입 시 홈으로
+  if (state.currentUser && v.startsWith('teacher') && v !== 'teacher-select' && !state.currentTeacher) {
+    state.view = 'home';
+    v = 'home';
   }
 
   const map = {
+    'login': renderLoginPage, 'signup': renderSignupPage, 'forgot-password': renderForgotPassword,
     'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
@@ -47,32 +57,45 @@ function renderTopbar() {
   const bar = el('div', { class: 'topbar' });
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const statsRow = el('div', { class: 'stats-row' });
-  if (state.view !== 'home') {
+  const authViews = ['login', 'signup', 'forgot-password'];
+
+  if (!authViews.includes(state.view) && state.view !== 'home') {
     statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, [
-      el('i', { 'data-lucide': 'home', style: 'width: 16px; height: 16px; display: block;' })
+      el('i', { 'data-lucide': 'home', style: 'width:16px; height:16px; display:block;' })
     ]));
   }
-  const lang = getLangInfo();
-  statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
-  statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, [
-    el('i', { 'data-lucide': 'shield', style: 'margin-right: 4px; width: 15px; height: 15px; vertical-align: middle;' }),
-    '관리자'
-  ]));
-  if (state.currentTeacher) {
+
+  if (state.currentUser) {
+    // 언어 선택 (학생 모드)
+    if (state.currentStudent) {
+      const lang = getLangInfo();
+      statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
+    }
+    // 관리자 버튼 (admin만)
+    if (state.currentUser.isAdmin) {
+      statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); } }, [
+        el('i', { 'data-lucide': 'shield', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }),
+        '관리자'
+      ]));
+    }
+    // 로그인 유저 이름
+    const icon = state.currentUser.isAdmin ? 'crown' : state.currentTeacher ? 'book-open' : 'graduation-cap';
     statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
-      el('i', { 'data-lucide': 'users', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
-      state.currentTeacher.name
+      el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
+      state.currentUser.name
+    ]));
+    // 학생 XP/레벨
+    if (state.currentStudent) {
+      statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
+      statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
+      if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
+    }
+    // 로그아웃
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' }, [
+      el('i', { 'data-lucide': 'log-out', style: 'width:15px; height:15px;' })
     ]));
   }
-  if (state.currentStudent) {
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#f5f3ff; color:#5b21b6; border-color:#ddd6fe' }, [
-      el('i', { 'data-lucide': 'user', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
-      state.currentStudent
-    ]));
-    statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
-    statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
-    if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
-  }
+
   bar.appendChild(statsRow);
   return bar;
 }

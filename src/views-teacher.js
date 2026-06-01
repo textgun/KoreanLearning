@@ -2,6 +2,160 @@
    VIEWS - TEACHER & ADMIN MODES
    ========================================================= */
 
+/* ---------- 로그인 ---------- */
+function renderLoginPage() {
+  const root = el('div', { style: 'max-width:420px; margin:60px auto' });
+  const panel = el('div', { class: 'panel' });
+
+  const ttl = el('h2', { style: 'text-align:center; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:24px; height:24px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('로그인'));
+  panel.appendChild(ttl);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:24px' }, '한국어 학습 도구'));
+
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%; margin-bottom:12px' });
+  const pwIn    = el('input', { type: 'password', placeholder: '비밀번호', style: 'width:100%; margin-bottom:16px' });
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '이메일'));
+  panel.appendChild(emailIn);
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '비밀번호'));
+  panel.appendChild(pwIn);
+
+  const loginBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', onClick: async () => {
+    const email = emailIn.value.trim();
+    const pw    = pwIn.value;
+    if (!email || !pw) { toast('이메일과 비밀번호를 입력하세요', 'danger'); return; }
+    loginBtn.disabled = true;
+    loginBtn.textContent = '로그인 중...';
+    try {
+      await fbSignIn(email, pw);
+      // onAuthStateChanged가 자동으로 처리
+    } catch (e) {
+      const msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'
+        ? '이메일 또는 비밀번호가 맞지 않습니다' : '로그인 실패: ' + e.message;
+      toast(msg, 'danger');
+      loginBtn.disabled = false;
+      loginBtn.textContent = '로그인';
+    }
+  }}, '로그인');
+  panel.appendChild(loginBtn);
+
+  const links = el('div', { style: 'display:flex; justify-content:space-between; margin-top:16px; font-size:0.88rem' });
+  links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'signup'; render(); } }, '회원가입'));
+  links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'forgot-password'; render(); } }, '비밀번호 찾기'));
+  panel.appendChild(links);
+
+  pwIn.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
+  root.appendChild(panel);
+  return root;
+}
+
+/* ---------- 회원가입 ---------- */
+function renderSignupPage() {
+  const root = el('div', { style: 'max-width:480px; margin:40px auto' });
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
+
+  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:22px; height:22px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('회원가입'));
+  panel.appendChild(ttl);
+
+  const f = (label, input) => {
+    const w = el('div', { style: 'margin-bottom:12px' });
+    w.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, label));
+    w.appendChild(input);
+    return w;
+  };
+
+  const nameIn  = el('input', { type: 'text',     placeholder: '홍길동',             style: 'width:100%' });
+  const phoneIn = el('input', { type: 'tel',      placeholder: '010-0000-0000',     style: 'width:100%' });
+  const emailIn = el('input', { type: 'email',    placeholder: 'example@email.com', style: 'width:100%' });
+  const addrIn  = el('input', { type: 'text',     placeholder: '서울시 강남구 ...',  style: 'width:100%' });
+  const pwIn    = el('input', { type: 'password', placeholder: '6자 이상',          style: 'width:100%' });
+  const pwCfmIn = el('input', { type: 'password', placeholder: '비밀번호 재입력',   style: 'width:100%' });
+
+  [f('이름 *', nameIn), f('연락처 *', phoneIn), f('이메일 *', emailIn),
+   f('주소', addrIn), f('비밀번호 * (6자 이상)', pwIn), f('비밀번호 확인 *', pwCfmIn)]
+    .forEach(w => panel.appendChild(w));
+
+  const submitBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:4px', onClick: async () => {
+    const name  = nameIn.value.trim();
+    const phone = phoneIn.value.trim();
+    const email = emailIn.value.trim();
+    const pw    = pwIn.value;
+    if (!name || !phone || !email || !pw) { toast('필수 항목을 모두 입력하세요', 'danger'); return; }
+    if (pw.length < 6) { toast('비밀번호는 6자 이상이어야 합니다', 'danger'); return; }
+    if (pw !== pwCfmIn.value) { toast('비밀번호가 일치하지 않습니다', 'danger'); return; }
+
+    submitBtn.disabled = true; submitBtn.textContent = '처리 중...';
+    try {
+      const cred = await fbRegister(email, pw);
+      const uid  = cred.user.uid;
+
+      // 첫 번째 가입자 = 관리자
+      const existing = await fbGetAllTeachers();
+      const isAdmin  = existing.length === 0;
+
+      await fbSaveTeacher(uid, {
+        name, phone, email, address: addrIn.value.trim(),
+        status: 'teaching', note: '', isAdmin,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 자동 로그인됩니다.`, 'success');
+      // onAuthStateChanged가 자동 로그인 처리
+    } catch (e) {
+      const msg = e.code === 'auth/email-already-in-use' ? '이미 사용 중인 이메일입니다' : '가입 실패: ' + e.message;
+      toast(msg, 'danger');
+      submitBtn.disabled = false; submitBtn.textContent = '가입하기';
+    }
+  }}, '가입하기');
+  panel.appendChild(submitBtn);
+  root.appendChild(panel);
+  return root;
+}
+
+/* ---------- 비밀번호 찾기 ---------- */
+function renderForgotPassword() {
+  const root = el('div', { style: 'max-width:420px; margin:60px auto' });
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
+
+  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
+  ttl.appendChild(el('i', { 'data-lucide': 'key', style: 'width:22px; height:22px; color:var(--primary)' }));
+  ttl.appendChild(document.createTextNode('비밀번호 찾기'));
+  panel.appendChild(ttl);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:20px' }, '가입한 이메일로 비밀번호 재설정 링크를 보내드립니다.'));
+
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%; margin-bottom:16px' });
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '이메일'));
+  panel.appendChild(emailIn);
+
+  const sendBtn = el('button', { class: 'btn btn-primary btn-block', onClick: async () => {
+    const email = emailIn.value.trim();
+    if (!email) { toast('이메일을 입력하세요', 'danger'); return; }
+    sendBtn.disabled = true; sendBtn.textContent = '전송 중...';
+    try {
+      await fbResetPassword(email);
+      panel.innerHTML = '';
+      panel.appendChild(el('div', { style: 'text-align:center; padding:20px' }, [
+        el('i', { 'data-lucide': 'mail-check', style: 'width:48px; height:48px; color:#10b981; display:block; margin:0 auto 16px' }),
+      ]));
+      panel.appendChild(el('h3', { style: 'text-align:center; margin-bottom:8px' }, '이메일을 확인하세요'));
+      panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px' }, `${email}로 재설정 링크를 발송했습니다.`));
+      panel.appendChild(el('button', { class: 'btn btn-primary btn-block', onClick: () => { state.view = 'login'; render(); } }, '로그인으로 돌아가기'));
+      if (window.lucide) window.lucide.createIcons();
+    } catch (e) {
+      toast('이메일 발송 실패: ' + e.message, 'danger');
+      sendBtn.disabled = false; sendBtn.textContent = '재설정 이메일 보내기';
+    }
+  }}, '재설정 이메일 보내기');
+  panel.appendChild(sendBtn);
+
+  root.appendChild(panel);
+  return root;
+}
+
 function renderHome() {
   const root = el('div');
 
@@ -13,7 +167,7 @@ function renderHome() {
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => {
-    state.view = state.currentTeacher ? 'teacher' : 'teacher-select';
+    state.view = state.currentTeacher ? 'teacher' : 'login';
     render();
   }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
@@ -98,7 +252,7 @@ function renderTeacherSelect() {
         students: []
       };
       masterState.teachers.push(newTeacher);
-      await saveMaster();
+      await fbSaveTeacher(teacher.id, { name: teacher.name, phone: teacher.phone, status: teacher.status, note: teacher.note });
       
       state.currentTeacher = newTeacher;
       state.students = [];
@@ -235,8 +389,9 @@ function renderTeacher() {
         const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
           const ok = await showConfirm('학생 삭제', `"${s.name}" 학생을 정말 삭제하시겠습니까?`, true);
           if (!ok) return;
+          if (s.firestoreId) await fbDeleteStudent(s.firestoreId);
           state.currentTeacher.students.splice(idx, 1);
-          await saveMaster();
+          state.students = state.currentTeacher.students.map(st => st.name);
           render();
         }});
         delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
@@ -1048,7 +1203,7 @@ function renderAdminTeacherDetail() {
   const sc = teacher.status === 'teaching';
   const info = el('div', { style: 'display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; margin-bottom:16px; align-items:center' });
   info.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:4px 12px; font-weight:600; font-size:0.9rem` }, sc ? '🟢 수업진행중' : '🟡 교육중'));
-  info.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: async () => { teacher.status = sc ? 'training' : 'teaching'; await saveMaster(); render(); }}, `↔ ${sc ? '교육중으로' : '수업중으로'} 변경`));
+  info.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: async () => { teacher.status = sc ? 'training' : 'teaching'; await fbSaveTeacher(teacher.id, { name: teacher.name, phone: teacher.phone, status: teacher.status, note: teacher.note }); render(); }}, `↔ ${sc ? '교육중으로' : '수업중으로'} 변경`));
   if (teacher.phone) {
     const phoneDiv = el('div', { style: 'color:#64748b; font-size:0.9rem; display:flex; align-items:center; gap:4px' });
     phoneDiv.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px;' }));
@@ -1130,8 +1285,8 @@ function renderAdminTeacherDetail() {
     const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
       const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
       if (!ok) return;
+      if (student.firestoreId) await fbDeleteStudent(student.firestoreId);
       teacher.students.splice(idx, 1);
-      await saveMaster();
       _adminProgressCache = null;
       render();
     }});
@@ -1185,10 +1340,11 @@ function showTeacherModal(existing = null) {
       if (existing) {
         existing.name = name; existing.phone = phoneIn.value.trim();
         existing.status = statusSel.value; existing.note = noteIn.value.trim();
+        await fbSaveTeacher(existing.id, { name: existing.name, phone: existing.phone, status: existing.status, note: existing.note });
       } else {
-        masterState.teachers.push({ id: Date.now(), name, phone: phoneIn.value.trim(), status: statusSel.value, note: noteIn.value.trim(), students: [] });
+        toast('새 교사 등록은 회원가입 페이지를 이용하세요.', 'accent');
+        root.innerHTML = ''; resolve(false); return;
       }
-      await saveMaster();
       root.innerHTML = ''; resolve(true); render();
     }}, existing ? '저장' : '추가'));
     modal.appendChild(btns);
@@ -1226,8 +1382,10 @@ function showAddStudentModal(teacher) {
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       if (!teacher.students) teacher.students = [];
       if (teacher.students.some(s => s.name === name)) { toast('이미 등록된 이름입니다', 'danger'); return; }
-      teacher.students.push({ name, nationality: natSel.value, age: parseInt(ageIn.value) || null });
-      await saveMaster();
+      const age = parseInt(ageIn.value) || null;
+      const firestoreId = await fbAddStudent(teacher.id, { name, nationality: natSel.value, age, teacherId: teacher.id });
+      if (!teacher.students) teacher.students = [];
+      teacher.students.push({ name, nationality: natSel.value, age, firestoreId, teacherId: teacher.id });
       _adminProgressCache = null;
       root.innerHTML = ''; resolve(true); render();
     }}, '추가'));
@@ -1275,8 +1433,9 @@ function showEditStudentModal(teacher, student, idx) {
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
       if (duplicate) { toast('이미 등록된 이름입니다', 'danger'); return; }
-      teacher.students[idx] = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
-      await saveMaster();
+      const updatedStudent = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null, teacherId: teacher.id, firestoreId: student.firestoreId };
+      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, updatedStudent);
+      teacher.students[idx] = updatedStudent;
       _adminProgressCache = null;
       root.innerHTML = '';
       resolve(true);
@@ -1295,7 +1454,7 @@ async function deleteTeacher(id) {
   const ok = await showConfirm('교사 삭제', `"${teacher?.name}" 교사를 삭제하시겠습니까?\n\n학생 명단도 함께 삭제됩니다.`, true);
   if (!ok) return;
   masterState.teachers = masterState.teachers.filter(t => t.id !== id);
-  await saveMaster();
+  await fbDeleteTeacherDoc(id);
   state.view = 'admin';
   render();
 }

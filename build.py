@@ -15,6 +15,7 @@ SCRIPTS = [
     "router.js",
     "views-teacher.js",
     "views-student.js",
+    "firebase.js",
     "app.js"
 ]
 
