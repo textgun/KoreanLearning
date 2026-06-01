@@ -83,13 +83,23 @@ function renderTeacher() {
   title.appendChild(document.createTextNode('단원 관리'));
   head.appendChild(title);
   
-  const headBtns = el('div', { style: 'display:flex; gap:8px' });
-  
+  const headBtns = el('div', { style: 'display:flex; gap:8px; flex-wrap:wrap' });
+
+  const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
+  const aiBtn = el('button', {
+    class: 'btn btn-sm',
+    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}; display:inline-flex; align-items:center; gap:4px`,
+    onClick: showApiKeyModal
+  });
+  aiBtn.appendChild(el('i', { 'data-lucide': _pi.icon, style: 'width:13px; height:13px;' }));
+  aiBtn.appendChild(document.createTextNode(_pk ? ' AI 설정 ✓' : ' ⚠️ AI 설정'));
+  headBtns.appendChild(aiBtn);
+
   const progressBtn = el('button', { class: 'btn btn-ghost', style: 'display:flex; align-items:center; gap:6px', onClick: () => { _progressCache = null; state.view = 'teacher-progress'; render(); }});
   progressBtn.appendChild(el('i', { 'data-lucide': 'bar-chart-2', style: 'width:16px; height:16px;' }));
   progressBtn.appendChild(document.createTextNode('진도 현황'));
   headBtns.appendChild(progressBtn);
-  
+
   const createBtn = el('button', { class: 'btn btn-primary', style: 'display:flex; align-items:center; gap:6px', onClick: () => { state.view = 'teacher-create'; render(); }});
   createBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
   createBtn.appendChild(document.createTextNode('새 단원'));
