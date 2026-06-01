@@ -12,7 +12,7 @@ function renderHome() {
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = state.currentTeacher ? 'teacher' : 'teacher-login'; render(); }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
@@ -21,6 +21,115 @@ function renderHome() {
   grid.append(teacherCard, studentCard);
   root.appendChild(grid);
 
+  return root;
+}
+
+function renderTeacherLogin() {
+  const root = el('div');
+  const panel = el('div', { class: 'panel', style: 'max-width: 460px; margin: 20px auto;' });
+  
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 홈으로'));
+  
+  const title = el('h2', { style: 'margin-top:14px; display:flex; align-items:center; gap:8px; justify-content:center' });
+  title.appendChild(el('i', { 'data-lucide': 'user-check', style: 'width:26px; height:26px; color:var(--primary);' }));
+  title.appendChild(document.createTextNode('교사 로그인 / 등록'));
+  panel.appendChild(title);
+  
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px; font-size:0.92rem' }, '선생님의 이름과 연락처를 입력해 주세요. 처음 방문하시는 경우 새로운 계정이 생성됩니다.'));
+  
+  // Fields wrapper
+  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px' });
+  
+  const nameLabel = el('label', { style: 'display:flex; align-items:center; gap:4px' });
+  nameLabel.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--muted);' }));
+  nameLabel.appendChild(document.createTextNode('교사 성함 *'));
+  form.appendChild(nameLabel);
+  
+  const nameIn = el('input', { type: 'text', placeholder: '홍길동', style: 'width:100%' });
+  form.appendChild(nameIn);
+  
+  const phoneLabel = el('label', { style: 'display:flex; align-items:center; gap:4px' });
+  phoneLabel.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px; color:var(--muted);' }));
+  phoneLabel.appendChild(document.createTextNode('연락처 (전화번호) *'));
+  form.appendChild(phoneLabel);
+  
+  const phoneIn = el('input', { type: 'text', placeholder: '010-1234-5678', style: 'width:100%' });
+  form.appendChild(phoneIn);
+  
+  // Dynamic registration area (hidden initially)
+  const regArea = el('div', { style: 'margin-top:12px; padding:14px; border:1px dashed var(--primary); border-radius:10px; background:rgba(79, 70, 229, 0.03); display:none;' });
+  regArea.appendChild(el('p', { style: 'font-weight:700; color:var(--primary); font-size:0.9rem; margin-bottom:8px;' }, '✨ 처음 오셨군요! 초기 상태를 선택해 주세요:'));
+  
+  const statusLabel = el('label', {}, '상태 (Status) *');
+  regArea.appendChild(statusLabel);
+  
+  const statusSel = el('select', { style: 'width:100%; margin-bottom:4px;' });
+  statusSel.appendChild(el('option', { value: 'teaching' }, '🟢 수업 진행 중 (학생 등록 및 편집 가능)'));
+  statusSel.appendChild(el('option', { value: 'training' }, '🟡 교육 중 (조회만 가능)'));
+  regArea.appendChild(statusSel);
+  
+  form.appendChild(regArea);
+  
+  // Submit button
+  const submitBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;' });
+  submitBtn.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:18px; height:18px; color:#fff;' }));
+  submitBtn.appendChild(document.createTextNode('대시보드 로그인'));
+  
+  let isChecking = true; // State to track whether we're checking existence or registering
+  
+  submitBtn.onclick = async () => {
+    const name = nameIn.value.trim();
+    const phone = phoneIn.value.trim();
+    if (!name || !phone) { toast('이름과 연락처를 모두 입력해 주세요', 'danger'); return; }
+    
+    // Check if teacher exists
+    const teacher = masterState.teachers.find(t => t.name === name && t.phone === phone);
+    
+    if (teacher) {
+      // Exist! Log in directly
+      state.currentTeacher = teacher;
+      state.students = (teacher.students || []).map(s => s.name);
+      state.view = 'teacher';
+      await persistTeacher(true);
+      render();
+      toast(`👋 어서 오세요, ${teacher.name} 선생님!`, 'success');
+    } else {
+      if (isChecking) {
+        // Teacher does not exist, show registration area
+        isChecking = false;
+        regArea.style.display = 'block';
+        submitBtn.innerHTML = '';
+        submitBtn.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:18px; height:18px; color:#fff;' }));
+        submitBtn.appendChild(document.createTextNode('교사 프로필 등록 및 시작'));
+        toast('신규 교사로 정보 등록을 진행합니다.', 'accent');
+        nameIn.disabled = true;
+        phoneIn.disabled = true;
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        // Perform registration
+        const status = statusSel.value;
+        const newTeacher = {
+          id: Date.now(),
+          name,
+          phone,
+          status,
+          note: '',
+          students: []
+        };
+        masterState.teachers.push(newTeacher);
+        await saveMaster();
+        state.currentTeacher = newTeacher;
+        state.students = [];
+        state.view = 'teacher';
+        render();
+        toast('🎉 교사 등록이 성공적으로 완료되었습니다!', 'success');
+      }
+    }
+  };
+  
+  form.appendChild(submitBtn);
+  panel.appendChild(form);
+  root.appendChild(panel);
   return root;
 }
 
@@ -89,6 +198,8 @@ function renderTeacher() {
   const panel = el('div', { class: 'panel' });
   const head = el('div', { class: 'row-between' });
   
+  const isTraining = state.currentTeacher && state.currentTeacher.status === 'training';
+  
   const title = el('h2', { style: 'display:flex; align-items:center; gap:8px' });
   title.appendChild(el('i', { 'data-lucide': 'book-open', style: 'width:24px; height:24px; color:var(--primary);' }));
   title.appendChild(document.createTextNode('단원 관리'));
@@ -111,13 +222,24 @@ function renderTeacher() {
   progressBtn.appendChild(document.createTextNode('진도 현황'));
   headBtns.appendChild(progressBtn);
 
-  const createBtn = el('button', { class: 'btn btn-primary', style: 'display:flex; align-items:center; gap:6px', onClick: () => { state.view = 'teacher-create'; render(); }});
-  createBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
-  createBtn.appendChild(document.createTextNode('새 단원'));
-  headBtns.appendChild(createBtn);
+  if (!isTraining) {
+    const createBtn = el('button', { class: 'btn btn-primary', style: 'display:flex; align-items:center; gap:6px', onClick: () => { state.view = 'teacher-create'; render(); }});
+    createBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
+    createBtn.appendChild(document.createTextNode('새 단원'));
+    headBtns.appendChild(createBtn);
+  }
   
   head.appendChild(headBtns);
   panel.appendChild(head);
+  
+  // 교육중 상태 배너 추가
+  if (isTraining) {
+    const banner = el('div', { style: 'background:#fef3c7; color:#92400e; border:1px solid #f5d48b; border-radius:10px; padding:12px; margin: 12px 0 16px; display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.88rem; line-height:1.4;' });
+    banner.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:#92400e; flex-shrink:0;' }));
+    banner.appendChild(document.createTextNode('⚠️ 현재 교육중 모드입니다. 대시보드를 조회만 할 수 있으며, 단원 생성/편집 및 학생 등록이 제한됩니다.'));
+    panel.appendChild(banner);
+  }
+  
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF 업로드 또는 직접 입력으로 단원을 만들고 편집할 수 있습니다.'));
 
   if (state.units.length === 0) {
@@ -130,81 +252,116 @@ function renderTeacher() {
       info.appendChild(el('h4', {}, u.title));
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
       
-      const actions = el('div', { class: 'unit-actions' });
-      
-      const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => editUnit(u.id) });
-      editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
-      editBtn.appendChild(document.createTextNode('편집'));
-      actions.appendChild(editBtn);
-      
-      const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
-      delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
-      actions.appendChild(delBtn);
-      
-      item.append(info, actions);
+      if (!isTraining) {
+        const actions = el('div', { class: 'unit-actions' });
+        
+        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => editUnit(u.id) });
+        editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
+        editBtn.appendChild(document.createTextNode('편집'));
+        actions.appendChild(editBtn);
+        
+        const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
+        delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
+        actions.appendChild(delBtn);
+        
+        item.append(info, actions);
+      } else {
+        const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:#f1f5f9; border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
+        viewLabel.appendChild(el('i', { 'data-lucide': 'eye', style: 'width:12px; height:12px; color:var(--muted);' }));
+        viewLabel.appendChild(document.createTextNode('조회 모드'));
+        item.append(info, viewLabel);
+      }
       list.appendChild(item);
     });
     panel.appendChild(list);
   }
   root.appendChild(panel);
 
-  // Student roster (read-only — managed by master admin)
+  // Student roster
   const rosterPanel = el('div', { class: 'panel' });
-  const rosterTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px' });
-  rosterTitle.appendChild(el('i', { 'data-lucide': 'users', style: 'width:18px; height:18px; color:var(--primary);' }));
-  rosterTitle.appendChild(document.createTextNode('학생 명단'));
+  const rosterTitle = el('div', { class: 'row-between', style: 'margin-bottom:10px;' });
+  
+  const titleText = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin:0;' });
+  titleText.appendChild(el('i', { 'data-lucide': 'users', style: 'width:18px; height:18px; color:var(--primary);' }));
+  titleText.appendChild(document.createTextNode('학생 명단'));
+  rosterTitle.appendChild(titleText);
+  
+  if (!isTraining) {
+    const addStuBtn = el('button', { class: 'btn btn-primary btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showAddStudentModal(state.currentTeacher) });
+    addStuBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:13px; height:13px; color:#fff;' }));
+    addStuBtn.appendChild(document.createTextNode('학생 등록'));
+    rosterTitle.appendChild(addStuBtn);
+  }
   rosterPanel.appendChild(rosterTitle);
   
   const teacherStudents = state.currentTeacher ? (state.currentTeacher.students || []) : [];
   if (teacherStudents.length === 0) {
-    rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-top:10px; font-size:0.9rem' }, '관리자 대시보드에서 학생을 추가하세요.'));
+    rosterPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-top:10px; font-size:0.9rem' }, '등록된 학생이 없습니다.'));
   } else {
     const stuList = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
-    teacherStudents.forEach(s => {
+    teacherStudents.forEach((s, idx) => {
       const row = el('div', { style: 'display:flex; align-items:center; gap:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px' });
       row.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--primary);' }));
       row.appendChild(el('div', { style: 'font-weight:600; flex:1' }, s.name));
       if (s.nationality) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, s.nationality));
       if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
+      
+      if (!isTraining) {
+        const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#3b82f6; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
+        editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
+        row.appendChild(editStuBtn);
+
+        const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
+          const ok = await showConfirm('학생 삭제', `"${s.name}" 학생을 정말 삭제하시겠습니까?`, true);
+          if (!ok) return;
+          state.currentTeacher.students.splice(idx, 1);
+          await saveMaster();
+          render();
+        }});
+        delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
+        row.appendChild(delStuBtn);
+      }
       stuList.appendChild(row);
     });
     rosterPanel.appendChild(stuList);
   }
   root.appendChild(rosterPanel);
 
-  // Danger zone - reset all data
-  const dangerPanel = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger)' });
-  
-  const dangerTitle = el('h3', { style: 'color:var(--danger); display:flex; align-items:center; gap:8px;' });
-  dangerTitle.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:var(--danger);' }));
-  dangerTitle.appendChild(document.createTextNode('데이터 초기화'));
-  dangerPanel.appendChild(dangerTitle);
-  
-  dangerPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '모든 단원, 점수, 레벨, 배지를 삭제하고 처음부터 다시 시작합니다. 샘플 단원으로 초기화되며 되돌릴 수 없습니다.'));
-  
-  const resetBtn = el('button', { class: 'btn btn-danger', style: 'display:inline-flex; align-items:center; gap:6px', onClick: async () => {
-    const ok1 = await showConfirm('⚠️ 데이터 초기화', '정말 모든 데이터를 삭제하시겠습니까?\n\n- 모든 단원 삭제\n- 점수/레벨/배지 초기화\n- 샘플 단원으로 초기화\n\n⚠️ 되돌릴 수 없습니다.', true);
-    if (!ok1) return;
-    const ok2 = await showConfirm('마지막 확인', '정말로 처음부터 다시 시작하시겠습니까?', true);
-    if (!ok2) return;
-    try { await window.storage.delete(TEACHER_KEY); } catch (e) {}
-    state.units = [SAMPLE_UNIT];
-    state.stats = defaultStats();
-    state.language = 'en';
-    state.students = [];
-    state.currentStudent = null;
-    state.view = 'home';
-    state.currentUnitId = null;
-    state.currentActivity = null;
-    state.game = null;
-    await persistTeacher(true);
-    toast('초기화 완료. 처음부터 시작합니다.', 'success');
-    render();
-  }});
-  resetBtn.appendChild(el('i', { 'data-lucide': 'refresh-cw', style: 'width:15px; height:15px; color:#fff;' }));
-  resetBtn.appendChild(document.createTextNode('모든 데이터 초기화하기'));
-  dangerPanel.appendChild(resetBtn);
-  root.appendChild(dangerPanel);
+  // Danger zone - reset all data (수업중 상태일 때만 활성화)
+  if (!isTraining) {
+    const dangerPanel = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger)' });
+    
+    const dangerTitle = el('h3', { style: 'color:var(--danger); display:flex; align-items:center; gap:8px;' });
+    dangerTitle.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:var(--danger);' }));
+    dangerTitle.appendChild(document.createTextNode('데이터 초기화'));
+    dangerPanel.appendChild(dangerTitle);
+    
+    dangerPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:12px' }, '모든 단원, 점수, 레벨, 배지를 삭제하고 처음부터 다시 시작합니다. 샘플 단원으로 초기화되며 되돌릴 수 없습니다.'));
+    
+    const resetBtn = el('button', { class: 'btn btn-danger', style: 'display:inline-flex; align-items:center; gap:6px', onClick: async () => {
+      const ok1 = await showConfirm('⚠️ 데이터 초기화', '정말 모든 데이터를 삭제하시겠습니까?\n\n- 모든 단원 삭제\n- 점수/레벨/배지 초기화\n- 샘플 단원으로 초기화\n\n⚠️ 되돌릴 수 없습니다.', true);
+      if (!ok1) return;
+      const ok2 = await showConfirm('마지막 확인', '정말로 처음부터 다시 시작하시겠습니까?', true);
+      if (!ok2) return;
+      try { await window.storage.delete(TEACHER_KEY); } catch (e) {}
+      state.units = [SAMPLE_UNIT];
+      state.stats = defaultStats();
+      state.language = 'en';
+      state.students = [];
+      state.currentStudent = null;
+      state.view = 'home';
+      state.currentUnitId = null;
+      state.currentActivity = null;
+      state.game = null;
+      await persistTeacher(true);
+      toast('초기화 완료. 처음부터 시작합니다.', 'success');
+      render();
+    }});
+    resetBtn.appendChild(el('i', { 'data-lucide': 'refresh-cw', style: 'width:15px; height:15px; color:#fff;' }));
+    resetBtn.appendChild(document.createTextNode('모든 데이터 초기화하기'));
+    dangerPanel.appendChild(resetBtn);
+    root.appendChild(dangerPanel);
+  }
 
   return root;
 }

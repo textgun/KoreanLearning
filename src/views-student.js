@@ -99,6 +99,88 @@ function renderStudent() {
     panel.appendChild(grid);
   }
   root.appendChild(panel);
+
+  // 우리 반 점수판 (리더보드) 기능 구현
+  const myTeacher = masterState.teachers.find(t => (t.students || []).some(s => s.name === state.currentStudent));
+  if (myTeacher) {
+    const classmates = myTeacher.students || [];
+    
+    // 같은 반 학생들의 스탯 동기 로드
+    const classmatesStats = classmates.map(s => {
+      const raw = localStorage.getItem('korean_student_' + encodeURIComponent(s.name) + '_v1');
+      let stats = { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
+      if (raw) {
+        try { stats = JSON.parse(raw).stats || stats; } catch(e) {}
+      }
+      return { name: s.name, nationality: s.nationality, age: s.age, stats };
+    });
+    
+    // XP 점수 내림차순 정렬
+    classmatesStats.sort((a, b) => (b.stats.xp || 0) - (a.stats.xp || 0));
+
+    const leaderPanel = el('div', { class: 'panel', style: 'margin-top:20px; border-top: 4px solid var(--accent);' });
+    
+    const leaderTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:12px' });
+    leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:#f59e0b;' }));
+    leaderTitle.appendChild(document.createTextNode(`🏆 우리 반 리더보드 (${myTeacher.name} 선생님 반)`));
+    leaderPanel.appendChild(leaderTitle);
+    
+    const table = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
+    
+    classmatesStats.forEach((c, idx) => {
+      const isMe = c.name === state.currentStudent;
+      const rank = idx + 1;
+      
+      const row = el('div', { style: `display:grid; grid-template-columns: 40px 1fr 68px 80px 60px; gap:8px; align-items:center; border:1px solid ${isMe ? 'var(--primary)' : 'rgba(226, 232, 240, 0.8)'}; border-radius:12px; padding:12px 14px; background:${isMe ? 'rgba(79, 70, 229, 0.05)' : 'rgba(255,255,255,0.5)'};` });
+      
+      // 순위 컬럼
+      const rankCol = el('div', { style: 'font-weight:800; font-size:1.1rem; text-align:center; display:flex; justify-content:center; align-items:center;' });
+      if (rank === 1) {
+        rankCol.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:18px; height:18px; color:#f59e0b;' }));
+      } else if (rank === 2) {
+        rankCol.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:#3b82f6;' }));
+      } else if (rank === 3) {
+        rankCol.appendChild(el('i', { 'data-lucide': 'medal', style: 'width:18px; height:18px; color:#10b981;' }));
+      } else {
+        rankCol.appendChild(document.createTextNode(String(rank)));
+      }
+      row.appendChild(rankCol);
+      
+      // 이름 및 국적
+      const nameWrap = el('div', { style: `font-weight:${isMe ? '800' : '600'}; font-size:0.95rem; color:${isMe ? 'var(--primary-dark)' : 'var(--text)'}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;` });
+      nameWrap.appendChild(document.createTextNode(c.name));
+      if (c.nationality) {
+        const flag = el('span', { style: 'font-size:0.75rem; color:#64748b; background:#e2e8f0; padding:1px 6px; border-radius:10px;' }, c.nationality);
+        nameWrap.appendChild(flag);
+      }
+      row.appendChild(nameWrap);
+      
+      // 레벨
+      row.appendChild(el('div', { style: 'font-size:0.85rem; font-weight:700; color:#5b21b6; text-align:center;' }, `Lv.${c.stats.level || 1}`));
+      
+      // XP
+      const xpCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:#92400e; display:flex; align-items:center; gap:2px; justify-content:center;' });
+      xpCol.appendChild(el('i', { 'data-lucide': 'sparkles', style: 'width:12px; height:12px; color:#f59e0b;' }));
+      xpCol.appendChild(document.createTextNode(`${c.stats.xp || 0} XP`));
+      row.appendChild(xpCol);
+      
+      // 불꽃(Streak)
+      const streakCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:#991b1b; display:flex; align-items:center; gap:2px; justify-content:center;' });
+      if ((c.stats.streak || 0) > 0) {
+        streakCol.appendChild(el('i', { 'data-lucide': 'zap', style: 'width:12px; height:12px; color:#ef4444; fill:#ef4444;' }));
+        streakCol.appendChild(document.createTextNode(`${c.stats.streak}일`));
+      } else {
+        streakCol.appendChild(document.createTextNode('-'));
+      }
+      row.appendChild(streakCol);
+      
+      table.appendChild(row);
+    });
+    
+    leaderPanel.appendChild(table);
+    root.appendChild(leaderPanel);
+  }
+
   return root;
 }
 

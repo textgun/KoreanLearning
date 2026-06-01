@@ -19,9 +19,16 @@ function render() {
   const app = $('#app');
   app.innerHTML = '';
   app.appendChild(renderTopbar());
-  const v = state.view;
+  
+  let v = state.view;
+  // 교사 세션이 없는 채로 교사 대시보드 진입 시 로그인 화면으로 리다이렉트 (관리자용 Select 뷰 제외)
+  if (v.startsWith('teacher') && v !== 'teacher-login' && v !== 'teacher-select' && !state.currentTeacher) {
+    state.view = 'teacher-login';
+    v = 'teacher-login';
+  }
+  
   const map = {
-    'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
+    'home': renderHome, 'teacher-select': renderTeacherSelect, 'teacher-login': renderTeacherLogin, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
     'student-select': renderStudentSelect,
