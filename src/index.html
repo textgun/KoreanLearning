@@ -4,12 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>한국어 학습 도구</title>
+<!-- Noto Sans KR 프리미엄 웹 폰트 적용 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app"></div>
 <div id="toast"></div>
 <div id="modal-root"></div>
+
+<!-- 모듈화된 개별 스크립트 순차 로드 -->
+<script src="config.js"></script>
+<script src="storage.js"></script>
+<script src="api.js"></script>
+<script src="utils.js"></script>
+<script src="router.js"></script>
+<script src="views-teacher.js"></script>
+<script src="views-student.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
