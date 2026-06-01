@@ -12,7 +12,10 @@ function renderHome() {
 
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => {
+    state.view = state.currentTeacher ? 'teacher' : 'teacher-select';
+    render();
+  }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
@@ -26,60 +29,88 @@ function renderHome() {
 
 function renderTeacherSelect() {
   const root = el('div');
-  const panel = el('div', { class: 'panel' });
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 뒤로'));
+  const panel = el('div', { class: 'panel', style: 'max-width: 460px; margin: 20px auto;' });
   
-  const title = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
-  title.appendChild(el('i', { 'data-lucide': 'users', style: 'width:24px; height:24px; color:var(--primary);' }));
-  title.appendChild(document.createTextNode('교사 선택'));
+  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 홈으로'));
+  
+  const title = el('h2', { style: 'margin-top:14px; display:flex; align-items:center; gap:8px; justify-content:center' });
+  title.appendChild(el('i', { 'data-lucide': 'user-check', style: 'width:26px; height:26px; color:var(--primary);' }));
+  title.appendChild(document.createTextNode('교사 로그인 / 등록'));
   panel.appendChild(title);
   
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하거나, 처음이라면 이름을 입력해 바로 시작하세요.'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px; font-size:0.92rem' }, '이름과 연락처를 입력해 주세요. 처음 오신 경우 새로운 계정이 자동으로 생성됩니다.'));
+  
+  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px' });
+  
+  const nameLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
+  nameLabel.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--muted);' }));
+  nameLabel.appendChild(document.createTextNode('교사 성함 *'));
+  form.appendChild(nameLabel);
+  
+  const nameIn = el('input', { type: 'text', placeholder: '홍길동', style: 'width:100%' });
+  form.appendChild(nameIn);
+  
+  const phoneLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
+  phoneLabel.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px; color:var(--muted);' }));
+  phoneLabel.appendChild(document.createTextNode('연락처 (전화번호) *'));
+  form.appendChild(phoneLabel);
+  
+  const phoneIn = el('input', { type: 'text', placeholder: '010-1234-5678', style: 'width:100%' });
+  form.appendChild(phoneIn);
 
-  const enterTeacher = (teacher) => {
-    state.currentTeacher = teacher;
-    state.students = (teacher.students || []).map(s => s.name);
-    state.view = 'teacher';
-    render();
-  };
-
-  // 기존 교사 목록
-  if (masterState.teachers.length > 0) {
-    const grid = el('div', { class: 'mode-grid', style: 'margin-bottom:20px' });
-    masterState.teachers.forEach(teacher => {
-      const card = el('div', { class: 'mode-card', onClick: () => enterTeacher(teacher) });
-      const sc = teacher.status === 'teaching';
-      card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
-      card.appendChild(el('h3', {}, teacher.name));
-      card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
-      card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
-      grid.appendChild(card);
-    });
-    panel.appendChild(grid);
-    panel.appendChild(el('div', { style: 'border-top:1px solid #e2e8f0; margin-bottom:18px' }));
-  }
-
-  // 신규 교사 등록
-  panel.appendChild(el('p', { style: 'font-weight:600; font-size:0.95rem; margin-bottom:10px' }, '처음 사용하시나요?'));
-  const newRow = el('div', { style: 'display:flex; gap:8px' });
-  const nameIn = el('input', { type: 'text', placeholder: '이름을 입력하세요', style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box' });
-  const startBtn = el('button', { class: 'btn btn-primary', onClick: async () => {
+  const statusLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
+  statusLabel.appendChild(el('i', { 'data-lucide': 'award', style: 'width:14px; height:14px; color:var(--muted);' }));
+  statusLabel.appendChild(document.createTextNode('역할 / 구분 *'));
+  form.appendChild(statusLabel);
+  
+  const statusSel = el('select', { style: 'width:100%' });
+  statusSel.appendChild(el('option', { value: 'teaching' }, '🟢 교사 (학생 등록 및 편집 가능)'));
+  statusSel.appendChild(el('option', { value: 'training' }, '🟡 교사교육중 (조회 전용)'));
+  form.appendChild(statusSel);
+  
+  const submitBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;' });
+  submitBtn.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:18px; height:18px; color:#fff;' }));
+  submitBtn.appendChild(document.createTextNode('대시보드 입장'));
+  
+  submitBtn.onclick = async () => {
     const name = nameIn.value.trim();
-    if (!name) { toast('이름을 입력하세요', 'danger'); return; }
-    if (masterState.teachers.some(t => t.name === name)) {
-      toast('이미 등록된 이름입니다. 위 목록에서 선택하세요', 'accent');
-      return;
+    const phone = phoneIn.value.trim();
+    if (!name || !phone) { toast('이름과 연락처를 모두 입력해 주세요', 'danger'); return; }
+    
+    // Check if teacher exists
+    const teacher = masterState.teachers.find(t => t.name === name && t.phone === phone);
+    
+    if (teacher) {
+      state.currentTeacher = teacher;
+      state.students = (teacher.students || []).map(s => s.name);
+      state.view = 'teacher';
+      localStorage.setItem('korean_current_teacher_v1', JSON.stringify(teacher));
+      render();
+      toast(`👋 어서 오세요, ${teacher.name} 선생님!`, 'success');
+    } else {
+      const status = statusSel.value;
+      const newTeacher = {
+        id: Date.now(),
+        name,
+        phone,
+        status,
+        note: '',
+        students: []
+      };
+      masterState.teachers.push(newTeacher);
+      await saveMaster();
+      
+      state.currentTeacher = newTeacher;
+      state.students = [];
+      state.view = 'teacher';
+      localStorage.setItem('korean_current_teacher_v1', JSON.stringify(newTeacher));
+      render();
+      toast('🎉 신규 교사 프로필 등록 및 로그인이 완료되었습니다!', 'success');
     }
-    const newTeacher = { id: Date.now(), name, phone: '', status: 'teaching', note: '', students: [] };
-    masterState.teachers.push(newTeacher);
-    await saveMaster();
-    toast(`✅ ${name} 선생님 등록됨`, 'success');
-    enterTeacher(newTeacher);
-  }}, '시작하기');
-  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') startBtn.click(); });
-  newRow.append(nameIn, startBtn);
-  panel.appendChild(newRow);
-
+  };
+  
+  form.appendChild(submitBtn);
+  panel.appendChild(form);
   root.appendChild(panel);
   return root;
 }
@@ -108,17 +139,17 @@ function renderTeacher() {
   aiBtn.appendChild(document.createTextNode(_pk ? ' AI 설정 ✓' : ' ⚠️ AI 설정'));
   headBtns.appendChild(aiBtn);
 
-  const switchBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:flex; align-items:center; gap:4px', onClick: () => { state.currentTeacher = null; state.students = []; state.view = 'teacher-select'; render(); }});
-  switchBtn.appendChild(el('i', { 'data-lucide': 'repeat-2', style: 'width:14px; height:14px;' }));
-  switchBtn.appendChild(document.createTextNode('교사 변경'));
-  headBtns.appendChild(switchBtn);
-
   const progressBtn = el('button', { class: 'btn btn-ghost', style: 'display:flex; align-items:center; gap:6px', onClick: () => { _progressCache = null; state.view = 'teacher-progress'; render(); }});
   progressBtn.appendChild(el('i', { 'data-lucide': 'bar-chart-2', style: 'width:16px; height:16px;' }));
   progressBtn.appendChild(document.createTextNode('진도 현황'));
   headBtns.appendChild(progressBtn);
 
   if (!isTraining) {
+    const addStuBtn = el('button', { class: 'btn btn-accent btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showAddStudentModal(state.currentTeacher) });
+    addStuBtn.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:13px; height:13px; color:#fff;' }));
+    addStuBtn.appendChild(document.createTextNode('학생 등록'));
+    headBtns.appendChild(addStuBtn);
+
     const createBtn = el('button', { class: 'btn btn-primary', style: 'display:flex; align-items:center; gap:6px', onClick: () => { state.view = 'teacher-create'; render(); }});
     createBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
     createBtn.appendChild(document.createTextNode('새 단원'));
