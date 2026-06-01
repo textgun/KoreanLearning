@@ -6,7 +6,9 @@
     await loadAll(); // localStorage에서 단원 데이터 로드
 
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
+    // _signingUp 플래그: 회원가입 중 중복 실행 방지
     auth.onAuthStateChanged(async (fbUser) => {
+      if (window._signingUp) return;
       if (fbUser) {
         state.view = 'loading';
         render();

@@ -106,6 +106,9 @@ function renderSignupPage() {
 
     submitBtn.disabled = true; submitBtn.textContent = '처리 중...';
     try {
+      // 회원가입 중 onAuthStateChanged 중복 실행 방지
+      window._signingUp = true;
+
       const cred = await fbRegister(email, pw);
       const uid  = cred.user.uid;
 
@@ -113,15 +116,23 @@ function renderSignupPage() {
       const existing = await fbGetAllTeachers();
       const isAdmin  = existing.length === 0;
 
+      // Firestore 문서 먼저 저장 후 라우팅 (Race condition 방지)
       await fbSaveTeacher(uid, {
         name, phone, email, address: addrIn.value.trim(),
         status: 'teaching', note: '', isAdmin,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 자동 로그인됩니다.`, 'success');
-      // onAuthStateChanged가 자동 로그인 처리
+      window._signingUp = false;
+
+      // 직접 onAuthLogin 호출
+      state.view = 'loading';
+      render();
+      await onAuthLogin(cred.user);
+      render();
+      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 환영합니다.`, 'success');
     } catch (e) {
+      window._signingUp = false;
       const msg = e.code === 'auth/email-already-in-use' ? '이미 사용 중인 이메일입니다' : '가입 실패: ' + e.message;
       toast(msg, 'danger');
       submitBtn.disabled = false; submitBtn.textContent = '가입하기';
