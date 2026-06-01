@@ -23,12 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
       - name: Build
-        run: python build.py
+        run: mkdir -p dist && cp korean_learning_app.html dist/index.html
 
       - uses: actions/configure-pages@v5
 
