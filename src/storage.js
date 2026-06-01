@@ -120,35 +120,7 @@ async function loadAll() {
   await migrateFromLegacy();
   await loadTeacher();
   await loadMaster();
-  await loadUsers();
   state.stats = defaultStats();
-}
-
-/* =========================================================
-   USER AUTH STORAGE
-   ========================================================= */
-const USERS_KEY = 'korean_users_v1';
-let usersState = { users: [] };
-
-async function hashPassword(password) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function loadUsers() {
-  try {
-    const r = await window.storage.get(USERS_KEY);
-    if (r && r.value) usersState = JSON.parse(r.value);
-  } catch (e) { console.warn('Users load failed:', e); }
-}
-
-async function saveUsers() {
-  try { await window.storage.set(USERS_KEY, JSON.stringify(usersState)); }
-  catch (e) { console.warn('Users save failed:', e); }
-}
-
-function findUserByEmail(email) {
-  return usersState.users.find(u => u.email.toLowerCase() === email.toLowerCase());
 }
 
 /* =========================================================
