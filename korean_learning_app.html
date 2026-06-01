@@ -1422,6 +1422,17 @@ const PROVIDERS = {
 /* =========================================================
    STORAGE
    ========================================================= */
+// GitHub Pages 환경에서 window.storage 대신 localStorage를 사용하는 폴리필
+if (!window.storage) {
+  window.storage = {
+    get: (key) => Promise.resolve(
+      localStorage.getItem(key) ? { value: localStorage.getItem(key) } : null
+    ),
+    set: (key, value) => Promise.resolve(localStorage.setItem(key, value)),
+    delete: (key) => Promise.resolve(localStorage.removeItem(key))
+  };
+}
+
 let _savingTeacher = false, _savingStudent = false, _storageOK = true;
 const TEACHER_KEY = 'korean_teacher_v1';
 const LEGACY_KEY = 'korean_app_v1';
@@ -2058,25 +2069,9 @@ function renderHome() {
   hero.appendChild(el('p', {}, 'Korean Learning App'));
   root.appendChild(hero);
 
-  // Language selector
-  const langPanel = el('div', { class: 'home-lang-panel' });
-  langPanel.appendChild(el('h3', {}, '🌍 학생 언어 선택 (Student\'s Language)'));
-  langPanel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, '수업 시작 전 학생이 사용하는 언어를 선택하세요.'));
-  const langGrid = el('div', { class: 'lang-grid' });
-  LANGS.forEach(l => {
-    const tile = el('div', {
-      class: 'lang-tile' + (state.language === l.code ? ' active' : ''),
-      onClick: () => { state.language = l.code; persistAll(); render(); }
-    });
-    tile.innerHTML = `<span class="flag">${l.flag}</span><div class="name">${l.name}</div>`;
-    langGrid.appendChild(tile);
-  });
-  langPanel.appendChild(langGrid);
-  root.appendChild(langPanel);
-
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = masterState.teachers.length > 0 ? 'teacher-select' : 'teacher'; render(); }});
+  const teacherCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'teacher-select'; render(); }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
@@ -2098,24 +2093,51 @@ function renderTeacherSelect() {
   title.appendChild(document.createTextNode('교사 선택'));
   panel.appendChild(title);
   
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '본인의 이름을 선택하세요.'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하거나, 처음이라면 이름을 입력해 바로 시작하세요.'));
 
-  const grid = el('div', { class: 'mode-grid' });
-  masterState.teachers.forEach(teacher => {
-    const card = el('div', { class: 'mode-card', onClick: () => {
-      state.currentTeacher = teacher;
-      state.students = (teacher.students || []).map(s => s.name);
-      state.view = 'teacher';
-      render();
-    }});
-    const sc = teacher.status === 'teaching';
-    card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
-    card.appendChild(el('h3', {}, teacher.name));
-    card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
-    card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
-    grid.appendChild(card);
-  });
-  panel.appendChild(grid);
+  const enterTeacher = (teacher) => {
+    state.currentTeacher = teacher;
+    state.students = (teacher.students || []).map(s => s.name);
+    state.view = 'teacher';
+    render();
+  };
+
+  // 기존 교사 목록
+  if (masterState.teachers.length > 0) {
+    const grid = el('div', { class: 'mode-grid', style: 'margin-bottom:20px' });
+    masterState.teachers.forEach(teacher => {
+      const card = el('div', { class: 'mode-card', onClick: () => enterTeacher(teacher) });
+      const sc = teacher.status === 'teaching';
+      card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
+      card.appendChild(el('h3', {}, teacher.name));
+      card.appendChild(el('div', { style: `display:inline-block; background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:2px 10px; font-size:0.82rem; font-weight:600; margin-top:4px` }, sc ? '🟢 수업중' : '🟡 교육중'));
+      card.appendChild(el('p', { style: 'font-size:0.85rem; margin-top:6px; color:#94a3b8' }, `학생 ${(teacher.students || []).length}명`));
+      grid.appendChild(card);
+    });
+    panel.appendChild(grid);
+    panel.appendChild(el('div', { style: 'border-top:1px solid #e2e8f0; margin-bottom:18px' }));
+  }
+
+  // 신규 교사 등록
+  panel.appendChild(el('p', { style: 'font-weight:600; font-size:0.95rem; margin-bottom:10px' }, '처음 사용하시나요?'));
+  const newRow = el('div', { style: 'display:flex; gap:8px' });
+  const nameIn = el('input', { type: 'text', placeholder: '이름을 입력하세요', style: 'flex:1; padding:10px 14px; border-radius:10px; border:2px solid #e2e8f0; font-size:1rem; box-sizing:border-box' });
+  const startBtn = el('button', { class: 'btn btn-primary', onClick: async () => {
+    const name = nameIn.value.trim();
+    if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+    if (masterState.teachers.some(t => t.name === name)) {
+      toast('이미 등록된 이름입니다. 위 목록에서 선택하세요', 'accent');
+      return;
+    }
+    const newTeacher = { id: Date.now(), name, phone: '', status: 'teaching', note: '', students: [] };
+    masterState.teachers.push(newTeacher);
+    await saveMaster();
+    toast(`✅ ${name} 선생님 등록됨`, 'success');
+    enterTeacher(newTeacher);
+  }}, '시작하기');
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') startBtn.click(); });
+  newRow.append(nameIn, startBtn);
+  panel.appendChild(newRow);
 
   root.appendChild(panel);
   return root;
@@ -2131,13 +2153,23 @@ function renderTeacher() {
   title.appendChild(document.createTextNode('단원 관리'));
   head.appendChild(title);
   
-  const headBtns = el('div', { style: 'display:flex; gap:8px' });
-  
+  const headBtns = el('div', { style: 'display:flex; gap:8px; flex-wrap:wrap' });
+
+  const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
+  const aiBtn = el('button', {
+    class: 'btn btn-sm',
+    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}; display:inline-flex; align-items:center; gap:4px`,
+    onClick: showApiKeyModal
+  });
+  aiBtn.appendChild(el('i', { 'data-lucide': _pi.icon, style: 'width:13px; height:13px;' }));
+  aiBtn.appendChild(document.createTextNode(_pk ? ' AI 설정 ✓' : ' ⚠️ AI 설정'));
+  headBtns.appendChild(aiBtn);
+
   const progressBtn = el('button', { class: 'btn btn-ghost', style: 'display:flex; align-items:center; gap:6px', onClick: () => { _progressCache = null; state.view = 'teacher-progress'; render(); }});
   progressBtn.appendChild(el('i', { 'data-lucide': 'bar-chart-2', style: 'width:16px; height:16px;' }));
   progressBtn.appendChild(document.createTextNode('진도 현황'));
   headBtns.appendChild(progressBtn);
-  
+
   const createBtn = el('button', { class: 'btn btn-primary', style: 'display:flex; align-items:center; gap:6px', onClick: () => { state.view = 'teacher-create'; render(); }});
   createBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
   createBtn.appendChild(document.createTextNode('새 단원'));
@@ -2585,7 +2617,8 @@ async function autoFillEmoji(v, emojiInput) {
   if (!v.word || (v.emoji && v.emoji !== '📝') || !getApiKey(getProvider())) return;
   try {
     const text = await callAI(`Korean word: "${v.word}". Reply with ONLY one emoji. Nothing else.`);
-    const emoji = [...text.trim()].slice(0, 2).join('');
+    const match = text.trim().match(/\p{Extended_Pictographic}/u);
+    const emoji = match ? match[0] : null;
     if (emoji) {
       v.emoji = emoji;
       if (emojiInput) emojiInput.value = emoji;
@@ -3050,7 +3083,7 @@ function renderAdminTeacherDetail() {
   teacher.students.forEach((student, idx) => {
     const stats = _adminProgressCache[student.name] || defaultStats();
     const pct = calcOverallProgress(stats.bestScores);
-    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px; gap:10px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
+    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px 36px; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
 
     const nameDiv = el('div');
     nameDiv.appendChild(el('div', { style: 'font-weight:600; font-size:0.95rem' }, student.name));
@@ -3071,7 +3104,11 @@ function renderAdminTeacherDetail() {
     prog.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; text-align:center' }, `${pct}%`));
     row.appendChild(prog);
 
-    const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:4px 6px; font-size:0.85rem; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
+    const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: () => showEditStudentModal(teacher, student, idx) });
+    editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
+    row.appendChild(editStuBtn);
+
+    const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
       const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
       if (!ok) return;
       teacher.students.splice(idx, 1);
@@ -3176,6 +3213,58 @@ function showAddStudentModal(teacher) {
       root.innerHTML = ''; resolve(true); render();
     }}, '추가'));
     modal.appendChild(btns);
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    setTimeout(() => nameIn.focus(), 50);
+  });
+}
+
+function showEditStudentModal(teacher, student, idx) {
+  return new Promise(resolve => {
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop' });
+    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); } };
+    const modal = el('div', { class: 'modal', style: 'max-width:400px' });
+    modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, '✏️ 학생 정보 수정'));
+
+    const field = (label, input) => {
+      modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label));
+      modal.appendChild(input);
+    };
+
+    const nameIn = el('input', { type: 'text', style: 'width:100%; margin-bottom:12px' });
+    nameIn.value = student.name;
+    field('이름 *', nameIn);
+
+    const natSel = el('select', { style: 'width:100%; margin-bottom:12px' });
+    NATIONALITIES.forEach(n => {
+      const opt = el('option', { value: n }, n);
+      if (n === student.nationality) opt.setAttribute('selected', '');
+      natSel.appendChild(opt);
+    });
+    field('국적', natSel);
+
+    const ageIn = el('input', { type: 'number', min: '1', max: '99', style: 'width:100%; margin-bottom:16px' });
+    ageIn.value = student.age || '';
+    field('나이', ageIn);
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); } }, '취소'));
+    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      const name = nameIn.value.trim();
+      if (!name) { toast('이름을 입력하세요', 'danger'); return; }
+      const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
+      if (duplicate) { toast('이미 등록된 이름입니다', 'danger'); return; }
+      teacher.students[idx] = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
+      await saveMaster();
+      _adminProgressCache = null;
+      root.innerHTML = '';
+      resolve(true);
+      render();
+    } }, '저장'));
+    modal.appendChild(btns);
+
     backdrop.appendChild(modal);
     root.appendChild(backdrop);
     setTimeout(() => nameIn.focus(), 50);
@@ -3959,4 +4048,5 @@ function renderStudentResult() {
 
 </script>
 </body>
+<!-- build trigger -->
 </html>
