@@ -58,18 +58,18 @@ const SAMPLE_UNIT = {
 };
 
 const ACTIVITIES = {
-  flashcard: { name: '단어카드',      icon: '📸', type: 'vocab',   desc: '단어 카드' },
-  quiz:      { name: '4지선다 퀴즈', icon: '❓',      type: 'vocab',   desc: '답 맞히기' },
-  matching:  { name: '매칭 게임',    icon: '🧩', type: 'vocab',   desc: '쌍 맞추기' },
-  fillblank: { name: '빈칸 채우기',  icon: '✏️', type: 'grammar', desc: '문장 완성' },
-  sentorder: { name: '문장 순서',    icon: '🔢', type: 'grammar', desc: '단어 배열' },
-  oxquiz:    { name: 'OX 퀴즈',      icon: '⭕',      type: 'grammar', desc: '문법 판단' },
-  pdfquiz:   { name: 'PDF 퀴즈',     icon: '📋', type: 'pdfquiz', desc: '학습지 문제' }
+  flashcard: { name: '단어카드',      icon: 'copy',           type: 'vocab',   desc: '단어 카드' },
+  quiz:      { name: '4지선다 퀴즈', icon: 'help-circle',    type: 'vocab',   desc: '답 맞히기' },
+  matching:  { name: '매칭 게임',    icon: 'puzzle',         type: 'vocab',   desc: '쌍 맞추기' },
+  fillblank: { name: '빈칸 채우기',  icon: 'edit-3',         type: 'grammar', desc: '문장 완성' },
+  sentorder: { name: '문장 순서',    icon: 'align-left',     type: 'grammar', desc: '단어 배열' },
+  oxquiz:    { name: 'OX 퀴즈',      icon: 'check-square',   type: 'grammar', desc: '문법 판단' },
+  pdfquiz:   { name: 'PDF 퀴즈',     icon: 'file-text',      type: 'pdfquiz', desc: '학습지 문제' }
 };
 
 const PROVIDERS = {
-  anthropic: { name: 'Anthropic', icon: '🟠', models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'], keyHint: 'sk-ant-api03-...' },
-  openai:    { name: 'OpenAI',    icon: '🟢', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'], keyHint: 'sk-proj-...' },
-  gemini:    { name: 'Gemini',    icon: '🔵', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'], keyHint: 'AIzaSy...' },
-  groq:      { name: 'Groq',      icon: '⚡', models: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], keyHint: 'gsk_...' }
+  anthropic: { name: 'Anthropic', icon: 'cpu',       models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7'], keyHint: 'sk-ant-api03-...' },
+  openai:    { name: 'OpenAI',    icon: 'sparkles',  models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'], keyHint: 'sk-proj-...' },
+  gemini:    { name: 'Gemini',    icon: 'brain',     models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'], keyHint: 'AIzaSy...' },
+  groq:      { name: 'Groq',      icon: 'zap',       models: ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], keyHint: 'gsk_...' }
 };

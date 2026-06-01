@@ -29,6 +29,11 @@ function render() {
     'student-activity': renderStudentActivity, 'student-result': renderStudentResult
   };
   if (map[v]) app.appendChild(map[v]());
+
+  // Lucide SVG 아이콘 자동 렌더링 스레드 실행
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
 }
 
 function renderTopbar() {
@@ -36,16 +41,27 @@ function renderTopbar() {
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const statsRow = el('div', { class: 'stats-row' });
   if (state.view !== 'home') {
-    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, '🏠'));
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, [
+      el('i', { 'data-lucide': 'home', style: 'width: 16px; height: 16px; display: block;' })
+    ]));
   }
   const lang = getLangInfo();
   statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
-  statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, '👑 관리자'));
+  statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); }}, [
+    el('i', { 'data-lucide': 'shield', style: 'margin-right: 4px; width: 15px; height: 15px; vertical-align: middle;' }),
+    '관리자'
+  ]));
   if (state.currentTeacher) {
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#dbeafe; color:#1d4ed8' }, `👩‍🏫 ${state.currentTeacher.name}`));
+    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
+      el('i', { 'data-lucide': 'users', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
+      state.currentTeacher.name
+    ]));
   }
   if (state.currentStudent) {
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#ede9fe; color:#5b21b6' }, `🧑‍🎓 ${state.currentStudent}`));
+    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#f5f3ff; color:#5b21b6; border-color:#ddd6fe' }, [
+      el('i', { 'data-lucide': 'user', style: 'margin-right: 4px; width: 14px; height: 14px; vertical-align: middle;' }),
+      state.currentStudent
+    ]));
     statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
     statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
     if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
@@ -88,7 +104,9 @@ function showApiKeyModal() {
         class: 'btn btn-sm',
         style: `padding:10px 4px; line-height:1.3; white-space:pre-line; background:${isActive ? 'var(--primary)' : '#f1f5f9'}; color:${isActive ? '#fff' : '#374151'}; ${hasK ? 'outline:2px solid #10b981; outline-offset:1px' : ''}`,
         onClick: () => { selectedProvider = code; renderModal(); }
-      }, `${info.icon}\n${info.name}${hasK ? ' ✓' : ''}`);
+      });
+      tab.appendChild(el('i', { 'data-lucide': info.icon, style: 'display:block; margin:0 auto 4px; width:18px; height:18px;' }));
+      tab.appendChild(document.createTextNode(`${info.name}${hasK ? ' ✓' : ''}`));
       tabs.appendChild(tab);
     });
     modal.appendChild(tabs);
@@ -106,7 +124,10 @@ function showApiKeyModal() {
     modal.appendChild(warn);
 
     // API 키 입력
-    modal.appendChild(el('label', { style: 'font-size:0.9rem; font-weight:600; margin-bottom:5px; display:block' }, `${info.icon} ${info.name} API 키`));
+    const labelEl = el('label', { style: 'font-size:0.9rem; font-weight:600; margin-bottom:5px; display:block' });
+    labelEl.appendChild(el('i', { 'data-lucide': info.icon, style: 'margin-right:4px; vertical-align:middle; width:15px; height:15px; display:inline-block;' }));
+    labelEl.appendChild(document.createTextNode(` ${info.name} API 키`));
+    modal.appendChild(labelEl);
     const input = el('input', { type: 'password', placeholder: info.keyHint, style: 'width:100%; margin-bottom:12px; font-family:monospace' });
     input.value = currentKey;
     modal.appendChild(input);

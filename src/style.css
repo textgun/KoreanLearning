@@ -6,26 +6,27 @@
 }
 
 :root {
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --primary-soft: #dbeafe;
-  --accent: #d97706;
+  --primary: #4f46e5;      /* Deep premium Indigo */
+  --primary-dark: #3730a3;
+  --primary-soft: #e0e7ff;  /* Soft lavender-indigo */
+  --accent: #f59e0b;       /* Amber */
   --accent-soft: #fef3c7;
-  --success: #059669;
+  --success: #10b981;      /* Emerald */
   --success-soft: #d1fae5;
-  --danger: #dc2626;
+  --danger: #f43f5e;       /* Rose Red */
   --danger-soft: #fee2e2;
-  --bg: #f8fafc;
+  --bg: #fafafa;
   --surface: #ffffff;
   --surface-2: #f8fafc;
-  --text: #172033;
-  --muted: #667085;
-  --border: #d9e0ea;
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow-md: 0 10px 30px rgba(16, 24, 40, 0.10);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --text: #0f172a;         /* Slate Black */
+  --muted: #64748b;        /* Slate Grey */
+  --border: rgba(226, 232, 240, 0.8);
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 
   /* 프리미엄 타이포그래피 토큰 시스템 */
   --font-primary: 'Plus Jakarta Sans', 'Noto Sans KR', "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -35,12 +36,29 @@
 body {
   min-height: 100vh;
   color: var(--text);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: radial-gradient(circle at 50% 0%, #eff6ff 0%, #faf5ff 50%, #f8fafc 100%);
   font-family: var(--font-primary);
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Lucide SVG icons styling */
+i[data-lucide] {
+  stroke-width: 2.25;
+  color: var(--primary);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.card-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  display: block;
+  color: var(--primary);
+  filter: drop-shadow(0 4px 8px rgba(79, 70, 229, 0.18));
 }
 
 #app {
@@ -59,19 +77,20 @@ body {
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 18px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(217, 224, 234, 0.9);
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .logo {
   color: var(--primary-dark);
-  font-size: 1.08rem;
+  font-size: 1.15rem;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
@@ -88,7 +107,7 @@ body {
   align-items: center;
   gap: 5px;
   min-height: 34px;
-  padding: 6px 11px;
+  padding: 6px 12px;
   color: #344054;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -122,17 +141,19 @@ body {
 
 .stat-chip.lang:hover {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .panel,
 .home-lang-panel {
   margin-bottom: 16px;
-  padding: 22px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 h2 {
@@ -328,18 +349,20 @@ textarea:focus-visible,
   min-height: 210px;
   padding: 28px 22px;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mode-card:hover {
-  border-color: #93c5fd;
+  border-color: rgba(79, 70, 229, 0.4);
   box-shadow: var(--shadow-md);
-  transform: translateY(-3px);
+  transform: translateY(-4px);
 }
 
 .mode-card .icon {
@@ -549,19 +572,21 @@ label {
   padding: 22px 18px;
   color: var(--text);
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-top: 4px solid var(--primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .unit-tile:hover {
-  border-color: #93c5fd;
+  border-color: rgba(79, 70, 229, 0.4);
   box-shadow: var(--shadow-md);
-  transform: translateY(-3px);
+  transform: translateY(-4px);
 }
 
 .unit-tile .num {
@@ -592,22 +617,33 @@ label {
   min-height: 142px;
   padding: 18px 14px;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .activity-tile:hover {
   border-color: var(--primary);
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
 }
 
 .activity-tile .icon {
   margin-bottom: 8px;
   font-size: 2.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.activity-tile .icon i {
+  width: 32px;
+  height: 32px;
+  color: var(--primary);
 }
 
 .activity-tile .name {
