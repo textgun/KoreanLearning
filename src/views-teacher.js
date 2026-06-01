@@ -29,8 +29,9 @@ function renderLoginPage() {
   panel.appendChild(ttl);
   panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:24px' }, '한국어 학습 도구'));
 
-  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%; margin-bottom:12px' });
-  const pwIn    = el('input', { type: 'password', placeholder: '비밀번호', style: 'width:100%; margin-bottom:16px' });
+  const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1rem; font-family:inherit; background:var(--surface); box-sizing:border-box;';
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: inputStyle + 'margin-bottom:12px' });
+  const pwIn    = el('input', { type: 'password', placeholder: '비밀번호', style: inputStyle + 'margin-bottom:16px' });
   panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '이메일'));
   panel.appendChild(emailIn);
   panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '비밀번호'));
@@ -197,93 +198,7 @@ function renderHome() {
   return root;
 }
 
-function renderTeacherSelect() {
-  const root = el('div');
-  const panel = el('div', { class: 'panel', style: 'max-width: 460px; margin: 20px auto;' });
-  
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 홈으로'));
-  
-  const title = el('h2', { style: 'margin-top:14px; display:flex; align-items:center; gap:8px; justify-content:center' });
-  title.appendChild(el('i', { 'data-lucide': 'user-check', style: 'width:26px; height:26px; color:var(--primary);' }));
-  title.appendChild(document.createTextNode('교사 로그인 / 등록'));
-  panel.appendChild(title);
-  
-  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px; font-size:0.92rem' }, '이름과 연락처를 입력해 주세요. 처음 오신 경우 새로운 계정이 자동으로 생성됩니다.'));
-  
-  const form = el('div', { style: 'display:flex; flex-direction:column; gap:12px' });
-  
-  const nameLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
-  nameLabel.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--muted);' }));
-  nameLabel.appendChild(document.createTextNode('교사 성함 *'));
-  form.appendChild(nameLabel);
-  
-  const nameIn = el('input', { type: 'text', placeholder: '홍길동', style: 'width:100%' });
-  form.appendChild(nameIn);
-  
-  const phoneLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
-  phoneLabel.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px; color:var(--muted);' }));
-  phoneLabel.appendChild(document.createTextNode('연락처 (전화번호) *'));
-  form.appendChild(phoneLabel);
-  
-  const phoneIn = el('input', { type: 'text', placeholder: '010-1234-5678', style: 'width:100%' });
-  form.appendChild(phoneIn);
 
-  const statusLabel = el('label', { style: 'display:flex; align-items:center; gap:4px; font-weight:600' });
-  statusLabel.appendChild(el('i', { 'data-lucide': 'award', style: 'width:14px; height:14px; color:var(--muted);' }));
-  statusLabel.appendChild(document.createTextNode('역할 / 구분 *'));
-  form.appendChild(statusLabel);
-  
-  const statusSel = el('select', { style: 'width:100%' });
-  statusSel.appendChild(el('option', { value: 'teaching' }, '🟢 교사 (학생 등록 및 편집 가능)'));
-  statusSel.appendChild(el('option', { value: 'training' }, '🟡 교사교육중 (조회 전용)'));
-  form.appendChild(statusSel);
-  
-  const submitBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', style: 'margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;' });
-  submitBtn.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:18px; height:18px; color:#fff;' }));
-  submitBtn.appendChild(document.createTextNode('대시보드 입장'));
-  
-  submitBtn.onclick = async () => {
-    const name = nameIn.value.trim();
-    const phone = phoneIn.value.trim();
-    if (!name || !phone) { toast('이름과 연락처를 모두 입력해 주세요', 'danger'); return; }
-    
-    // Check if teacher exists
-    const teacher = masterState.teachers.find(t => t.name === name && t.phone === phone);
-    
-    if (teacher) {
-      state.currentTeacher = teacher;
-      state.students = (teacher.students || []).map(s => s.name);
-      state.view = 'teacher';
-      localStorage.setItem('korean_current_teacher_v1', JSON.stringify(teacher));
-      render();
-      toast(`👋 어서 오세요, ${teacher.name} 선생님!`, 'success');
-    } else {
-      const status = statusSel.value;
-      const newTeacher = {
-        id: Date.now(),
-        name,
-        phone,
-        status,
-        note: '',
-        students: []
-      };
-      masterState.teachers.push(newTeacher);
-      await fbSaveTeacher(teacher.id, { name: teacher.name, phone: teacher.phone, status: teacher.status, note: teacher.note });
-      
-      state.currentTeacher = newTeacher;
-      state.students = [];
-      state.view = 'teacher';
-      localStorage.setItem('korean_current_teacher_v1', JSON.stringify(newTeacher));
-      render();
-      toast('🎉 신규 교사 프로필 등록 및 로그인이 완료되었습니다!', 'success');
-    }
-  };
-  
-  form.appendChild(submitBtn);
-  panel.appendChild(form);
-  root.appendChild(panel);
-  return root;
-}
 
 function renderTeacher() {
   const root = el('div');
