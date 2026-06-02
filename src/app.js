@@ -31,14 +31,13 @@
             masterState.teachers = teachers.map(t => ({
               ...t, students: allStudents.filter(s => s.teacherId === t.id)
             }));
-            state.view = 'admin';
           } else {
             const students = await fbGetStudents(first.id);
             state.currentTeacher = { ...first, students };
             state.students = students.map(s => s.name);
             masterState.teachers = [state.currentTeacher];
-            state.view = 'teacher';
           }
+          state.view = 'home';
         }
         render();
       }

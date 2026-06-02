@@ -119,7 +119,6 @@ async function onAuthLogin(fbUser) {
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
-      state.view = 'admin';
     } else {
       // 일반 교사: 본인 학생만 조회
       const students = await fbGetStudents(fbUser.uid);
@@ -129,8 +128,10 @@ async function onAuthLogin(fbUser) {
       const idx = masterState.teachers.findIndex(t => t.id === fbUser.uid);
       if (idx >= 0) masterState.teachers[idx] = teacherWithStudents;
       else masterState.teachers.push(teacherWithStudents);
-      state.view = 'teacher';
     }
+
+    // 로그인/자동진입 후 항상 홈으로
+    state.view = 'home';
   } catch (e) {
     console.error('onAuthLogin error:', e);
     toast('데이터 로드 중 오류가 발생했습니다.', 'danger');
