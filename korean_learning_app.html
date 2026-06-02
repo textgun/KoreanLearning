@@ -1954,7 +1954,6 @@ function goHome() {
     state.currentStudent = null;
     state.stats = defaultStats();
   }
-  state.currentTeacher = null;
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
@@ -4415,7 +4414,10 @@ async function onAuthLogin(fbUser) {
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
-      state.view = 'admin';
+      const adminStudents = allStudents.filter(s => s.teacherId === fbUser.uid);
+      state.currentTeacher = { ...teacher, students: adminStudents };
+      state.students = adminStudents.map(s => s.name);
+      state.view = 'home';
     } else {
       // 일반 교사: 본인 학생만 조회
       const students = await fbGetStudents(fbUser.uid);
@@ -4425,7 +4427,7 @@ async function onAuthLogin(fbUser) {
       const idx = masterState.teachers.findIndex(t => t.id === fbUser.uid);
       if (idx >= 0) masterState.teachers[idx] = teacherWithStudents;
       else masterState.teachers.push(teacherWithStudents);
-      state.view = 'teacher';
+      state.view = 'home';
     }
   } catch (e) {
     console.error('onAuthLogin error:', e);
@@ -4442,6 +4444,7 @@ async function onAuthLogin(fbUser) {
 (async function init() {
   try {
     await loadAll(); // localStorage에서 단원 데이터 로드
+    render(); // Firebase 상태 확인 전에도 첫 화면은 로그인으로 표시
 
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
     auth.onAuthStateChanged(async (fbUser) => {
