@@ -13,12 +13,35 @@
         state.view = 'loading';
         render();
         await onAuthLogin(fbUser);
+        render();
       } else {
-        state.currentUser = null;
-        state.currentTeacher = null;
-        state.view = 'login';
+        // 로그아웃 상태: 기존 교사가 있으면 첫 번째 교사로 자동 진입 (테스트 모드)
+        // 교사가 한 명도 없으면 가입 화면 표시
+        state.view = 'loading';
+        render();
+        const teachers = await fbGetAllTeachers();
+        if (teachers.length === 0) {
+          state.view = 'signup';
+        } else {
+          // 첫 번째 교사(관리자)로 자동 로드
+          const first = teachers.find(t => t.isAdmin) || teachers[0];
+          state.currentUser = { uid: first.id, email: first.email || '', ...first };
+          if (first.isAdmin) {
+            const allStudents = await fbGetAllStudents(teachers.map(t => t.id));
+            masterState.teachers = teachers.map(t => ({
+              ...t, students: allStudents.filter(s => s.teacherId === t.id)
+            }));
+            state.view = 'admin';
+          } else {
+            const students = await fbGetStudents(first.id);
+            state.currentTeacher = { ...first, students };
+            state.students = students.map(s => s.name);
+            masterState.teachers = [state.currentTeacher];
+            state.view = 'teacher';
+          }
+        }
+        render();
       }
-      render();
     });
   } catch (e) {
     console.error('App init failed:', e);
