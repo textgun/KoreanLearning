@@ -96,23 +96,31 @@ async function fbDeleteStudent(firestoreId) {
 
 async function onAuthLogin(fbUser) {
   try {
-    // 교사 정보 + 전체 교사 목록 병렬 조회 (순차 → 동시)
-    const [teacher, allTeachers] = await Promise.all([
+    let [teacher, allTeachers] = await Promise.all([
       fbGetTeacher(fbUser.uid),
       fbGetAllTeachers()
     ]);
 
+    // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
+    // auth.signOut()을 호출하면 onAuthStateChanged 중복 실행 버그 발생 → 제거
     if (!teacher) {
-      toast('계정 데이터를 찾을 수 없습니다. 관리자에게 문의하세요.', 'danger');
-      await auth.signOut();
-      state.view = 'login';
-      return;
+      const isAdmin = allTeachers.length === 0;
+      await fbSaveTeacher(fbUser.uid, {
+        name: fbUser.email.split('@')[0],
+        email: fbUser.email,
+        phone: '',
+        status: 'teaching',
+        note: '',
+        isAdmin,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      teacher = await fbGetTeacher(fbUser.uid);
+      allTeachers = await fbGetAllTeachers();
     }
 
     state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
 
     if (teacher.isAdmin) {
-      // 이미 allTeachers 조회 완료 — 학생만 추가 조회
       const teacherIds = allTeachers.map(t => t.id);
       const allStudents = await fbGetAllStudents(teacherIds);
       masterState.teachers = allTeachers.map(t => ({
@@ -120,7 +128,6 @@ async function onAuthLogin(fbUser) {
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
     } else {
-      // 일반 교사: 본인 학생만 조회
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };
       state.currentTeacher = teacherWithStudents;
@@ -130,11 +137,10 @@ async function onAuthLogin(fbUser) {
       else masterState.teachers.push(teacherWithStudents);
     }
 
-    // 로그인/자동진입 후 항상 홈으로
     state.view = 'home';
   } catch (e) {
     console.error('onAuthLogin error:', e);
-    toast('데이터 로드 중 오류가 발생했습니다.', 'danger');
-    state.view = 'login';
+    toast('데이터 로드 중 오류: ' + (e.message || e), 'danger');
+    state.view = 'home'; // 오류 시에도 홈으로 (로그인 루프 방지)
   }
 }

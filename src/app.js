@@ -9,38 +9,42 @@
     // _signingUp 플래그: 회원가입 중 중복 실행 방지
     auth.onAuthStateChanged(async (fbUser) => {
       if (window._signingUp) return;
+
+      state.view = 'loading';
+      render();
+
       if (fbUser) {
-        state.view = 'loading';
-        render();
+        // Firebase 로그인 상태: Firestore에서 교사 데이터 로드
         await onAuthLogin(fbUser);
-        render();
       } else {
-        // 로그아웃 상태: 기존 교사가 있으면 첫 번째 교사로 자동 진입 (테스트 모드)
-        // 교사가 한 명도 없으면 가입 화면 표시
-        state.view = 'loading';
-        render();
-        const teachers = await fbGetAllTeachers();
-        if (teachers.length === 0) {
-          state.view = 'signup';
-        } else {
-          // 첫 번째 교사(관리자)로 자동 로드
-          const first = teachers.find(t => t.isAdmin) || teachers[0];
-          state.currentUser = { uid: first.id, email: first.email || '', ...first };
-          if (first.isAdmin) {
-            const allStudents = await fbGetAllStudents(teachers.map(t => t.id));
-            masterState.teachers = teachers.map(t => ({
-              ...t, students: allStudents.filter(s => s.teacherId === t.id)
-            }));
+        // 비로그인 상태: Firestore에 교사가 있으면 첫 교사로 자동 진입 (테스트 모드)
+        try {
+          const teachers = await fbGetAllTeachers();
+          if (teachers.length === 0) {
+            state.view = 'signup';
           } else {
-            const students = await fbGetStudents(first.id);
-            state.currentTeacher = { ...first, students };
-            state.students = students.map(s => s.name);
-            masterState.teachers = [state.currentTeacher];
+            const first = teachers.find(t => t.isAdmin) || teachers[0];
+            state.currentUser = { uid: first.id, email: first.email || '', ...first };
+            if (first.isAdmin) {
+              const allStudents = await fbGetAllStudents(teachers.map(t => t.id));
+              masterState.teachers = teachers.map(t => ({
+                ...t, students: allStudents.filter(s => s.teacherId === t.id)
+              }));
+            } else {
+              const students = await fbGetStudents(first.id);
+              state.currentTeacher = { ...first, students };
+              state.students = students.map(s => s.name);
+              masterState.teachers = [state.currentTeacher];
+            }
+            state.view = 'home';
           }
-          state.view = 'home';
+        } catch (e) {
+          console.error('Auto-login error:', e);
+          state.view = 'signup';
         }
-        render();
       }
+
+      render();
     });
   } catch (e) {
     console.error('App init failed:', e);
