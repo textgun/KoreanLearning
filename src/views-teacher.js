@@ -195,7 +195,7 @@ function renderHome() {
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => {
-    state.view = state.currentTeacher ? 'teacher' : 'login';
+    state.view = 'teacher';
     render();
   }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';

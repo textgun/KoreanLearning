@@ -30,8 +30,8 @@ function render() {
     v = 'login';
   }
 
-  // 교사 세션 없이 교사 대시보드 진입 시 홈으로
-  if (state.currentUser && v.startsWith('teacher') && !state.currentTeacher) {
+  // 교사 세션 없이 교사 뷰 진입 시: 관리자면 홈, 아니면 무시(student가 잘못 진입한 경우)
+  if (state.currentUser && v === 'teacher' && !state.currentTeacher && !state.currentUser.isAdmin) {
     state.view = 'home';
     v = 'home';
   }
