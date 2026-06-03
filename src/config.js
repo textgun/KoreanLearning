@@ -61,6 +61,8 @@ const ACTIVITIES = {
   flashcard: { name: '단어카드',      icon: 'copy',           type: 'vocab',   desc: '단어 카드' },
   quiz:      { name: '4지선다 퀴즈', icon: 'help-circle',    type: 'vocab',   desc: '답 맞히기' },
   matching:  { name: '매칭 게임',    icon: 'puzzle',         type: 'vocab',   desc: '쌍 맞추기' },
+  linematch: { name: 'SVG 선잇기',   icon: 'git-branch',     type: 'vocab',   desc: '선으로 연결' },
+  dictation: { name: '받아쓰기',     icon: 'mic',            type: 'vocab',   desc: '듣고 받아쓰기' },
   fillblank: { name: '빈칸 채우기',  icon: 'edit-3',         type: 'grammar', desc: '문장 완성' },
   sentorder: { name: '문장 순서',    icon: 'align-left',     type: 'grammar', desc: '단어 배열' },
   oxquiz:    { name: 'OX 퀴즈',      icon: 'check-square',   type: 'grammar', desc: '문법 판단' },

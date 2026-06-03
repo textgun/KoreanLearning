@@ -236,8 +236,8 @@ function renderStudentUnit() {
     panel.appendChild(vocabTitle);
     
     const vg = el('div', { class: 'activity-grid' });
-    ['flashcard', 'quiz', 'matching'].forEach(act => {
-      if (act !== 'flashcard' && unit.vocabulary.length < 4) return;
+    ['flashcard', 'quiz', 'matching', 'linematch', 'dictation'].forEach(act => {
+      if (act !== 'flashcard' && act !== 'dictation' && unit.vocabulary.length < 4) return;
       vg.appendChild(makeActivityTile(act, unit.id, 'vocab'));
     });
     panel.appendChild(vg);
@@ -308,6 +308,21 @@ function initGame(activity) {
     g.matched = new Set();
     g.selected = [];
     g.total = g.pairs.length;
+  } else if (activity === 'linematch') {
+    const vocab = shuffle(unit.vocabulary.slice()).slice(0, Math.min(6, unit.vocabulary.length));
+    g.vocab = vocab;
+    g.leftItems  = shuffle(vocab.map(v => ({ id: v.word, text: v.word })));
+    g.rightItems = shuffle(vocab.map(v => ({ id: v.word, text: getTranslation(v.translations) })));
+    g.connections = [];   // { id, leftEl, rightEl, lineEl }
+    g.selectedLeft  = null;
+    g.selectedRight = null;
+    g.total = vocab.length;
+    g.wrong = 0;
+  } else if (activity === 'dictation') {
+    g.cards = shuffle(unit.vocabulary.slice());
+    g.total = g.cards.length;
+    g.answer = '';
+    g.revealed = false;
   } else if (activity === 'fillblank') {
     g.questions = generateFillBlankQuestions(unit);
     g.total = g.questions.length;
@@ -407,6 +422,7 @@ function renderStudentActivity() {
 
   const map = {
     flashcard: renderFlashcardGame, quiz: renderQuizGame, matching: renderMatchingGame,
+    linematch: renderLineMatchGame, dictation: renderDictationGame,
     fillblank: renderFillBlankGame, sentorder: renderSentenceOrderGame, oxquiz: renderOXGame,
     pdfquiz: renderPdfQuizGame
   };
@@ -573,6 +589,241 @@ function selectMatchCard(c) {
       setTimeout(() => { g.selected = []; render(); }, 700);
     }
   } else render();
+}
+
+/* ---------- TTS 발음 엔진 (Web Speech + Google Translate 폴백) ---------- */
+function speakKorean(word) {
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(word);
+      utt.lang = 'ko-KR';
+      utt.rate = 0.85;
+      const voices = window.speechSynthesis.getVoices();
+      const ko = voices.find(v => v.lang.startsWith('ko'));
+      if (ko) utt.voice = ko;
+      utt.onerror = () => ttsGoogleFallback(word);
+      let t = setTimeout(() => {
+        if (!window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); ttsGoogleFallback(word); }
+      }, 1200);
+      utt.onstart = () => clearTimeout(t);
+      window.speechSynthesis.speak(utt);
+      return;
+    } catch (e) {}
+  }
+  ttsGoogleFallback(word);
+}
+function ttsGoogleFallback(word) {
+  try {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ko&client=tw-ob&q=${encodeURIComponent(word)}`;
+    new Audio(url).play().catch(() => {});
+  } catch (e) {}
+}
+
+/* ---------- SVG 선잇기 ---------- */
+function renderLineMatchGame() {
+  const g = state.game;
+  const root = el('div');
+
+  if (g.connections.length === g.total) { showResult(); return el('div'); }
+
+  const wrap = el('div', { style: 'position:relative; min-height:320px' });
+  wrap.id = 'lm-wrap';
+
+  // SVG 오버레이
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.id = 'lm-svg';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1';
+  wrap.appendChild(svg);
+
+  const leftCol  = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%' });
+  const rightCol = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%;margin-left:auto' });
+
+  const makeItem = (item, side) => {
+    const alreadyMatched = g.connections.some(c => c.id === item.id);
+    const div = el('div', {
+      class: 'lm-item' + (alreadyMatched ? ' lm-matched' : ''),
+      style: `cursor:${alreadyMatched ? 'default' : 'pointer'}`,
+      onClick: () => {
+        if (alreadyMatched) return;
+        if (side === 'left') {
+          document.querySelectorAll('.lm-item.lm-selected-left').forEach(e => e.classList.remove('lm-selected-left'));
+          div.classList.toggle('lm-selected-left');
+          g.selectedLeft = div.classList.contains('lm-selected-left') ? item : null;
+        } else {
+          document.querySelectorAll('.lm-item.lm-selected-right').forEach(e => e.classList.remove('lm-selected-right'));
+          div.classList.toggle('lm-selected-right');
+          g.selectedRight = div.classList.contains('lm-selected-right') ? item : null;
+        }
+        tryLineMatch(g);
+      }
+    });
+    div.dataset.id  = item.id;
+    div.dataset.side = side;
+
+    if (side === 'left') {
+      div.appendChild(document.createTextNode(item.text));
+      const dot = el('span', { class: 'lm-dot lm-dot-right' });
+      div.appendChild(dot);
+    } else {
+      const dot = el('span', { class: 'lm-dot lm-dot-left' });
+      div.appendChild(dot);
+      div.appendChild(document.createTextNode(item.text));
+    }
+    return div;
+  };
+
+  g.leftItems.forEach(item  => leftCol.appendChild(makeItem(item, 'left')));
+  g.rightItems.forEach(item => rightCol.appendChild(makeItem(item, 'right')));
+
+  wrap.appendChild(leftCol);
+  wrap.appendChild(rightCol);
+  root.appendChild(wrap);
+
+  // 기존 연결선 복원
+  setTimeout(() => {
+    g.connections.forEach(conn => drawSVGLine(conn.leftEl, conn.rightEl, true));
+  }, 50);
+
+  root.appendChild(el('p', { class: 'text-muted', style: 'text-align:center;margin-top:12px' },
+    `${g.connections.length}/${g.total} 완료`));
+  return root;
+}
+
+function tryLineMatch(g) {
+  if (!g.selectedLeft || !g.selectedRight) return;
+  const lEl = document.querySelector(`.lm-item[data-id="${g.selectedLeft.id}"][data-side="left"]`);
+  const rEl = document.querySelector(`.lm-item[data-id="${g.selectedRight.id}"][data-side="right"]`);
+  if (!lEl || !rEl) return;
+
+  if (g.selectedLeft.id === g.selectedRight.id) {
+    // 정답
+    lEl.classList.remove('lm-selected-left'); lEl.classList.add('lm-matched');
+    rEl.classList.remove('lm-selected-right'); rEl.classList.add('lm-matched');
+    const line = drawSVGLine(lEl, rEl, true);
+    g.connections.push({ id: g.selectedLeft.id, leftEl: lEl, rightEl: rEl, lineEl: line });
+    g.score += 20 + g.combo * 5; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.correct++;
+    addXP(15); state.stats.streak++;
+    const vocab = g.vocab.find(v => v.word === g.selectedLeft.id);
+    if (vocab) speakKorean(vocab.word);
+    toast(`연결! +${20 + g.combo * 5}`, 'success');
+    if (g.connections.length === g.total) { setTimeout(showResult, 700); return; }
+  } else {
+    // 오답
+    lEl.classList.add('lm-wrong'); rEl.classList.add('lm-wrong');
+    const tmpLine = drawSVGLine(lEl, rEl, false);
+    g.wrong++; g.combo = 0; state.stats.streak = 0;
+    toast('틀렸습니다!', 'danger');
+    setTimeout(() => {
+      lEl.classList.remove('lm-wrong', 'lm-selected-left');
+      rEl.classList.remove('lm-wrong', 'lm-selected-right');
+      if (tmpLine) tmpLine.remove();
+    }, 600);
+  }
+  g.selectedLeft = null; g.selectedRight = null;
+  // progress 업데이트를 위해 re-render (선 유지)
+  const prog = document.querySelector('[class="text-muted"]');
+  if (prog) prog.textContent = `${g.connections.length}/${g.total} 완료`;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function drawSVGLine(leftEl, rightEl, isPermanent) {
+  const svg  = document.getElementById('lm-svg');
+  const wrap = document.getElementById('lm-wrap');
+  if (!svg || !wrap) return null;
+  const wr   = wrap.getBoundingClientRect();
+  const lDot = leftEl.querySelector('.lm-dot-right');
+  const rDot = rightEl.querySelector('.lm-dot-left');
+  if (!lDot || !rDot) return null;
+  const lr = lDot.getBoundingClientRect();
+  const rr = rDot.getBoundingClientRect();
+  const x1 = lr.left + lr.width / 2 - wr.left;
+  const y1 = lr.top  + lr.height / 2 - wr.top;
+  const x2 = rr.left + rr.width / 2 - wr.left;
+  const y2 = rr.top  + rr.height / 2 - wr.top;
+  const ns   = 'http://www.w3.org/2000/svg';
+  const line = document.createElementNS(ns, 'line');
+  line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+  line.setAttribute('stroke', isPermanent ? '#10b981' : '#f59e0b');
+  line.setAttribute('stroke-width', isPermanent ? '3' : '2');
+  if (!isPermanent) line.setAttribute('stroke-dasharray', '5');
+  line.setAttribute('stroke-linecap', 'round');
+  svg.appendChild(line);
+  return line;
+}
+
+/* ---------- 받아쓰기 ---------- */
+function renderDictationGame() {
+  const g = state.game;
+  const card = g.cards[g.index];
+  if (!card) { showResult(); return el('div'); }
+
+  const root = el('div');
+
+  // 발음 버튼
+  const audioBox = el('div', { style: 'text-align:center; margin-bottom:20px' });
+  const speakBtn = el('button', { class: 'btn btn-primary', style: 'font-size:1.3rem; padding:14px 28px', onClick: () => speakKorean(card.word) }, '🔊 발음 듣기');
+  audioBox.appendChild(speakBtn);
+  audioBox.appendChild(el('p', { class: 'text-muted', style: 'margin-top:8px; font-size:0.9rem' }, '발음을 듣고 한국어를 받아 적으세요'));
+  root.appendChild(audioBox);
+
+  // 뜻 힌트
+  const hint = getTranslation(card.translations);
+  if (hint) root.appendChild(el('p', { style: 'text-align:center; color:var(--muted); font-size:0.95rem; margin-bottom:16px' }, `💡 ${hint}`));
+
+  // 입력창
+  const inputRow = el('div', { style: 'display:flex; gap:8px' });
+  const inputEl = el('input', { type: 'text', id: 'dictation-input', placeholder: '한국어로 입력하세요', style: 'flex:1; font-size:1.1rem; padding:12px 14px; border:2px solid var(--border); border-radius:var(--radius-md); font-family:inherit' });
+  inputEl.autocomplete = 'off';
+
+  if (g.revealed) {
+    inputEl.style.borderColor = g.lastCorrect ? '#10b981' : '#f43f5e';
+    inputEl.disabled = true;
+  }
+
+  const submitBtn = el('button', { class: 'btn btn-primary', style: 'padding:12px 18px; font-size:1rem', onClick: () => checkDictation(g, card, inputEl) }, '제출');
+  inputRow.append(inputEl, submitBtn);
+  root.appendChild(inputRow);
+
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') submitBtn.click(); });
+
+  // 정답/오답 후 다음 버튼
+  if (g.revealed) {
+    const ans = el('div', { style: `margin-top:14px; padding:12px; border-radius:10px; background:${g.lastCorrect ? '#d1fae5' : '#fee2e2'}; text-align:center; font-weight:600` },
+      g.lastCorrect ? '✅ 정답!' : `❌ 정답: ${card.word}`);
+    root.appendChild(ans);
+    const nextBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:12px', onClick: () => {
+      g.index++; g.revealed = false; g.answer = '';
+      if (g.index >= g.total) showResult(); else render();
+    }}, '다음 →');
+    root.appendChild(nextBtn);
+  }
+
+  // 자동 발음
+  if (!g.revealed) setTimeout(() => speakKorean(card.word), 300);
+
+  return root;
+}
+
+function checkDictation(g, card, inputEl) {
+  if (g.revealed) return;
+  const userText = (inputEl.value || '').trim();
+  if (!userText) { toast('답을 입력하세요', 'danger'); return; }
+  const sanitize = t => t.replace(/[.,?!]/g, '').replace(/\s/g, '');
+  const correct = sanitize(userText) === sanitize(card.word);
+  g.revealed = true;
+  g.lastCorrect = correct;
+  if (correct) {
+    g.score += 20 + g.combo * 3; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.correct++;
+    addXP(12); state.stats.streak++;
+    toast(`정답! +${20 + g.combo * 3}`, 'success');
+  } else {
+    g.wrong++; g.combo = 0; state.stats.streak = 0;
+    toast(`오답 — 정답: ${card.word}`, 'danger');
+  }
+  render();
 }
 
 /* ---------- Fill in blank (MULTIPLE CHOICE - no typing!) ---------- */

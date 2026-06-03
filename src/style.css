@@ -1318,3 +1318,65 @@ label {
     font-size: 0.86rem;
   }
 }
+
+/* =====================================================
+   SVG 선잇기 (Line Match)
+   ===================================================== */
+.lm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  transition: border-color 0.16s, background 0.16s, transform 0.1s;
+  user-select: none;
+}
+.lm-item:hover:not(.lm-matched) {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.lm-item.lm-selected-left,
+.lm-item.lm-selected-right {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.lm-item.lm-matched {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: #065f46;
+  cursor: default;
+}
+.lm-item.lm-wrong {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  animation: shake 0.4s ease;
+}
+.lm-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+.lm-dot-right { margin-left: auto; }
+.lm-dot-left  { margin-right: 0; }
+
+/* =====================================================
+   받아쓰기 (Dictation)
+   ===================================================== */
+#dictation-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-6px); }
+  75%       { transform: translateX(6px); }
+}
