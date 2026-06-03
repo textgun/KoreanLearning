@@ -1330,6 +1330,68 @@ label {
   }
 }
 
+/* =====================================================
+   SVG 선잇기 (Line Match)
+   ===================================================== */
+.lm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  transition: border-color 0.16s, background 0.16s, transform 0.1s;
+  user-select: none;
+}
+.lm-item:hover:not(.lm-matched) {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.lm-item.lm-selected-left,
+.lm-item.lm-selected-right {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.lm-item.lm-matched {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: #065f46;
+  cursor: default;
+}
+.lm-item.lm-wrong {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  animation: shake 0.4s ease;
+}
+.lm-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+.lm-dot-right { margin-left: auto; }
+.lm-dot-left  { margin-right: 0; }
+
+/* =====================================================
+   받아쓰기 (Dictation)
+   ===================================================== */
+#dictation-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-6px); }
+  75%       { transform: translateX(6px); }
+}
+
 </style>
 </head>
 <body>
@@ -1412,6 +1474,8 @@ const ACTIVITIES = {
   flashcard: { name: '단어카드',      icon: 'copy',           type: 'vocab',   desc: '단어 카드' },
   quiz:      { name: '4지선다 퀴즈', icon: 'help-circle',    type: 'vocab',   desc: '답 맞히기' },
   matching:  { name: '매칭 게임',    icon: 'puzzle',         type: 'vocab',   desc: '쌍 맞추기' },
+  linematch: { name: 'SVG 선잇기',   icon: 'git-branch',     type: 'vocab',   desc: '선으로 연결' },
+  dictation: { name: '받아쓰기',     icon: 'mic',            type: 'vocab',   desc: '듣고 받아쓰기' },
   fillblank: { name: '빈칸 채우기',  icon: 'edit-3',         type: 'grammar', desc: '문장 완성' },
   sentorder: { name: '문장 순서',    icon: 'align-left',     type: 'grammar', desc: '단어 배열' },
   oxquiz:    { name: 'OX 퀴즈',      icon: 'check-square',   type: 'grammar', desc: '문법 판단' },
@@ -1876,11 +1940,6 @@ function render() {
     v = 'login';
   }
 
-  // 교사 세션 없이 교사 대시보드 진입 시 홈으로
-  if (state.currentUser && v.startsWith('teacher') && !state.currentTeacher) {
-    state.view = 'home';
-    v = 'home';
-  }
 
   const map = {
     'loading': renderLoadingPage,
@@ -1954,6 +2013,7 @@ function goHome() {
     state.currentStudent = null;
     state.stats = defaultStats();
   }
+  state.currentTeacher = null;
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
@@ -2178,6 +2238,9 @@ function renderSignupPage() {
 
     submitBtn.disabled = true; submitBtn.textContent = '처리 중...';
     try {
+      // 회원가입 중 onAuthStateChanged 중복 실행 방지
+      window._signingUp = true;
+
       const cred = await fbRegister(email, pw);
       const uid  = cred.user.uid;
 
@@ -2185,15 +2248,23 @@ function renderSignupPage() {
       const existing = await fbGetAllTeachers();
       const isAdmin  = existing.length === 0;
 
+      // Firestore 문서 먼저 저장 후 라우팅 (Race condition 방지)
       await fbSaveTeacher(uid, {
         name, phone, email, address: addrIn.value.trim(),
         status: 'teaching', note: '', isAdmin,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 자동 로그인됩니다.`, 'success');
-      // onAuthStateChanged가 자동 로그인 처리
+      window._signingUp = false;
+
+      // 직접 onAuthLogin 호출
+      state.view = 'loading';
+      render();
+      await onAuthLogin(cred.user);
+      render();
+      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 환영합니다.`, 'success');
     } catch (e) {
+      window._signingUp = false;
       const msg = e.code === 'auth/email-already-in-use' ? '이미 사용 중인 이메일입니다' : '가입 실패: ' + e.message;
       toast(msg, 'danger');
       submitBtn.disabled = false; submitBtn.textContent = '가입하기';
@@ -2256,7 +2327,7 @@ function renderHome() {
   // Mode selection
   const grid = el('div', { class: 'mode-grid' });
   const teacherCard = el('div', { class: 'mode-card', onClick: () => {
-    state.view = state.currentTeacher ? 'teacher' : 'login';
+    state.view = 'teacher';
     render();
   }});
   teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
@@ -3702,8 +3773,8 @@ function renderStudentUnit() {
     panel.appendChild(vocabTitle);
     
     const vg = el('div', { class: 'activity-grid' });
-    ['flashcard', 'quiz', 'matching'].forEach(act => {
-      if (act !== 'flashcard' && unit.vocabulary.length < 4) return;
+    ['flashcard', 'quiz', 'matching', 'linematch', 'dictation'].forEach(act => {
+      if (act !== 'flashcard' && act !== 'dictation' && unit.vocabulary.length < 4) return;
       vg.appendChild(makeActivityTile(act, unit.id, 'vocab'));
     });
     panel.appendChild(vg);
@@ -3774,6 +3845,21 @@ function initGame(activity) {
     g.matched = new Set();
     g.selected = [];
     g.total = g.pairs.length;
+  } else if (activity === 'linematch') {
+    const vocab = shuffle(unit.vocabulary.slice()).slice(0, Math.min(6, unit.vocabulary.length));
+    g.vocab = vocab;
+    g.leftItems  = shuffle(vocab.map(v => ({ id: v.word, text: v.word })));
+    g.rightItems = shuffle(vocab.map(v => ({ id: v.word, text: getTranslation(v.translations) })));
+    g.connections = [];   // { id, leftEl, rightEl, lineEl }
+    g.selectedLeft  = null;
+    g.selectedRight = null;
+    g.total = vocab.length;
+    g.wrong = 0;
+  } else if (activity === 'dictation') {
+    g.cards = shuffle(unit.vocabulary.slice());
+    g.total = g.cards.length;
+    g.answer = '';
+    g.revealed = false;
   } else if (activity === 'fillblank') {
     g.questions = generateFillBlankQuestions(unit);
     g.total = g.questions.length;
@@ -3873,6 +3959,7 @@ function renderStudentActivity() {
 
   const map = {
     flashcard: renderFlashcardGame, quiz: renderQuizGame, matching: renderMatchingGame,
+    linematch: renderLineMatchGame, dictation: renderDictationGame,
     fillblank: renderFillBlankGame, sentorder: renderSentenceOrderGame, oxquiz: renderOXGame,
     pdfquiz: renderPdfQuizGame
   };
@@ -4039,6 +4126,241 @@ function selectMatchCard(c) {
       setTimeout(() => { g.selected = []; render(); }, 700);
     }
   } else render();
+}
+
+/* ---------- TTS 발음 엔진 (Web Speech + Google Translate 폴백) ---------- */
+function speakKorean(word) {
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(word);
+      utt.lang = 'ko-KR';
+      utt.rate = 0.85;
+      const voices = window.speechSynthesis.getVoices();
+      const ko = voices.find(v => v.lang.startsWith('ko'));
+      if (ko) utt.voice = ko;
+      utt.onerror = () => ttsGoogleFallback(word);
+      let t = setTimeout(() => {
+        if (!window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); ttsGoogleFallback(word); }
+      }, 1200);
+      utt.onstart = () => clearTimeout(t);
+      window.speechSynthesis.speak(utt);
+      return;
+    } catch (e) {}
+  }
+  ttsGoogleFallback(word);
+}
+function ttsGoogleFallback(word) {
+  try {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ko&client=tw-ob&q=${encodeURIComponent(word)}`;
+    new Audio(url).play().catch(() => {});
+  } catch (e) {}
+}
+
+/* ---------- SVG 선잇기 ---------- */
+function renderLineMatchGame() {
+  const g = state.game;
+  const root = el('div');
+
+  if (g.connections.length === g.total) { showResult(); return el('div'); }
+
+  const wrap = el('div', { style: 'position:relative; min-height:320px' });
+  wrap.id = 'lm-wrap';
+
+  // SVG 오버레이
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.id = 'lm-svg';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1';
+  wrap.appendChild(svg);
+
+  const leftCol  = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%' });
+  const rightCol = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%;margin-left:auto' });
+
+  const makeItem = (item, side) => {
+    const alreadyMatched = g.connections.some(c => c.id === item.id);
+    const div = el('div', {
+      class: 'lm-item' + (alreadyMatched ? ' lm-matched' : ''),
+      style: `cursor:${alreadyMatched ? 'default' : 'pointer'}`,
+      onClick: () => {
+        if (alreadyMatched) return;
+        if (side === 'left') {
+          document.querySelectorAll('.lm-item.lm-selected-left').forEach(e => e.classList.remove('lm-selected-left'));
+          div.classList.toggle('lm-selected-left');
+          g.selectedLeft = div.classList.contains('lm-selected-left') ? item : null;
+        } else {
+          document.querySelectorAll('.lm-item.lm-selected-right').forEach(e => e.classList.remove('lm-selected-right'));
+          div.classList.toggle('lm-selected-right');
+          g.selectedRight = div.classList.contains('lm-selected-right') ? item : null;
+        }
+        tryLineMatch(g);
+      }
+    });
+    div.dataset.id  = item.id;
+    div.dataset.side = side;
+
+    if (side === 'left') {
+      div.appendChild(document.createTextNode(item.text));
+      const dot = el('span', { class: 'lm-dot lm-dot-right' });
+      div.appendChild(dot);
+    } else {
+      const dot = el('span', { class: 'lm-dot lm-dot-left' });
+      div.appendChild(dot);
+      div.appendChild(document.createTextNode(item.text));
+    }
+    return div;
+  };
+
+  g.leftItems.forEach(item  => leftCol.appendChild(makeItem(item, 'left')));
+  g.rightItems.forEach(item => rightCol.appendChild(makeItem(item, 'right')));
+
+  wrap.appendChild(leftCol);
+  wrap.appendChild(rightCol);
+  root.appendChild(wrap);
+
+  // 기존 연결선 복원
+  setTimeout(() => {
+    g.connections.forEach(conn => drawSVGLine(conn.leftEl, conn.rightEl, true));
+  }, 50);
+
+  root.appendChild(el('p', { class: 'text-muted', style: 'text-align:center;margin-top:12px' },
+    `${g.connections.length}/${g.total} 완료`));
+  return root;
+}
+
+function tryLineMatch(g) {
+  if (!g.selectedLeft || !g.selectedRight) return;
+  const lEl = document.querySelector(`.lm-item[data-id="${g.selectedLeft.id}"][data-side="left"]`);
+  const rEl = document.querySelector(`.lm-item[data-id="${g.selectedRight.id}"][data-side="right"]`);
+  if (!lEl || !rEl) return;
+
+  if (g.selectedLeft.id === g.selectedRight.id) {
+    // 정답
+    lEl.classList.remove('lm-selected-left'); lEl.classList.add('lm-matched');
+    rEl.classList.remove('lm-selected-right'); rEl.classList.add('lm-matched');
+    const line = drawSVGLine(lEl, rEl, true);
+    g.connections.push({ id: g.selectedLeft.id, leftEl: lEl, rightEl: rEl, lineEl: line });
+    g.score += 20 + g.combo * 5; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.correct++;
+    addXP(15); state.stats.streak++;
+    const vocab = g.vocab.find(v => v.word === g.selectedLeft.id);
+    if (vocab) speakKorean(vocab.word);
+    toast(`연결! +${20 + g.combo * 5}`, 'success');
+    if (g.connections.length === g.total) { setTimeout(showResult, 700); return; }
+  } else {
+    // 오답
+    lEl.classList.add('lm-wrong'); rEl.classList.add('lm-wrong');
+    const tmpLine = drawSVGLine(lEl, rEl, false);
+    g.wrong++; g.combo = 0; state.stats.streak = 0;
+    toast('틀렸습니다!', 'danger');
+    setTimeout(() => {
+      lEl.classList.remove('lm-wrong', 'lm-selected-left');
+      rEl.classList.remove('lm-wrong', 'lm-selected-right');
+      if (tmpLine) tmpLine.remove();
+    }, 600);
+  }
+  g.selectedLeft = null; g.selectedRight = null;
+  // progress 업데이트를 위해 re-render (선 유지)
+  const prog = document.querySelector('[class="text-muted"]');
+  if (prog) prog.textContent = `${g.connections.length}/${g.total} 완료`;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function drawSVGLine(leftEl, rightEl, isPermanent) {
+  const svg  = document.getElementById('lm-svg');
+  const wrap = document.getElementById('lm-wrap');
+  if (!svg || !wrap) return null;
+  const wr   = wrap.getBoundingClientRect();
+  const lDot = leftEl.querySelector('.lm-dot-right');
+  const rDot = rightEl.querySelector('.lm-dot-left');
+  if (!lDot || !rDot) return null;
+  const lr = lDot.getBoundingClientRect();
+  const rr = rDot.getBoundingClientRect();
+  const x1 = lr.left + lr.width / 2 - wr.left;
+  const y1 = lr.top  + lr.height / 2 - wr.top;
+  const x2 = rr.left + rr.width / 2 - wr.left;
+  const y2 = rr.top  + rr.height / 2 - wr.top;
+  const ns   = 'http://www.w3.org/2000/svg';
+  const line = document.createElementNS(ns, 'line');
+  line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+  line.setAttribute('stroke', isPermanent ? '#10b981' : '#f59e0b');
+  line.setAttribute('stroke-width', isPermanent ? '3' : '2');
+  if (!isPermanent) line.setAttribute('stroke-dasharray', '5');
+  line.setAttribute('stroke-linecap', 'round');
+  svg.appendChild(line);
+  return line;
+}
+
+/* ---------- 받아쓰기 ---------- */
+function renderDictationGame() {
+  const g = state.game;
+  const card = g.cards[g.index];
+  if (!card) { showResult(); return el('div'); }
+
+  const root = el('div');
+
+  // 발음 버튼
+  const audioBox = el('div', { style: 'text-align:center; margin-bottom:20px' });
+  const speakBtn = el('button', { class: 'btn btn-primary', style: 'font-size:1.3rem; padding:14px 28px', onClick: () => speakKorean(card.word) }, '🔊 발음 듣기');
+  audioBox.appendChild(speakBtn);
+  audioBox.appendChild(el('p', { class: 'text-muted', style: 'margin-top:8px; font-size:0.9rem' }, '발음을 듣고 한국어를 받아 적으세요'));
+  root.appendChild(audioBox);
+
+  // 뜻 힌트
+  const hint = getTranslation(card.translations);
+  if (hint) root.appendChild(el('p', { style: 'text-align:center; color:var(--muted); font-size:0.95rem; margin-bottom:16px' }, `💡 ${hint}`));
+
+  // 입력창
+  const inputRow = el('div', { style: 'display:flex; gap:8px' });
+  const inputEl = el('input', { type: 'text', id: 'dictation-input', placeholder: '한국어로 입력하세요', style: 'flex:1; font-size:1.1rem; padding:12px 14px; border:2px solid var(--border); border-radius:var(--radius-md); font-family:inherit' });
+  inputEl.autocomplete = 'off';
+
+  if (g.revealed) {
+    inputEl.style.borderColor = g.lastCorrect ? '#10b981' : '#f43f5e';
+    inputEl.disabled = true;
+  }
+
+  const submitBtn = el('button', { class: 'btn btn-primary', style: 'padding:12px 18px; font-size:1rem', onClick: () => checkDictation(g, card, inputEl) }, '제출');
+  inputRow.append(inputEl, submitBtn);
+  root.appendChild(inputRow);
+
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') submitBtn.click(); });
+
+  // 정답/오답 후 다음 버튼
+  if (g.revealed) {
+    const ans = el('div', { style: `margin-top:14px; padding:12px; border-radius:10px; background:${g.lastCorrect ? '#d1fae5' : '#fee2e2'}; text-align:center; font-weight:600` },
+      g.lastCorrect ? '✅ 정답!' : `❌ 정답: ${card.word}`);
+    root.appendChild(ans);
+    const nextBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:12px', onClick: () => {
+      g.index++; g.revealed = false; g.answer = '';
+      if (g.index >= g.total) showResult(); else render();
+    }}, '다음 →');
+    root.appendChild(nextBtn);
+  }
+
+  // 자동 발음
+  if (!g.revealed) setTimeout(() => speakKorean(card.word), 300);
+
+  return root;
+}
+
+function checkDictation(g, card, inputEl) {
+  if (g.revealed) return;
+  const userText = (inputEl.value || '').trim();
+  if (!userText) { toast('답을 입력하세요', 'danger'); return; }
+  const sanitize = t => t.replace(/[.,?!]/g, '').replace(/\s/g, '');
+  const correct = sanitize(userText) === sanitize(card.word);
+  g.revealed = true;
+  g.lastCorrect = correct;
+  if (correct) {
+    g.score += 20 + g.combo * 3; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.correct++;
+    addXP(12); state.stats.streak++;
+    toast(`정답! +${20 + g.combo * 3}`, 'success');
+  } else {
+    g.wrong++; g.combo = 0; state.stats.streak = 0;
+    toast(`오답 — 정답: ${card.word}`, 'danger');
+  }
+  render();
 }
 
 /* ---------- Fill in blank (MULTIPLE CHOICE - no typing!) ---------- */
@@ -4391,35 +4713,38 @@ async function fbDeleteStudent(firestoreId) {
 
 async function onAuthLogin(fbUser) {
   try {
-    // 교사 정보 + 전체 교사 목록 병렬 조회 (순차 → 동시)
-    const [teacher, allTeachers] = await Promise.all([
+    let [teacher, allTeachers] = await Promise.all([
       fbGetTeacher(fbUser.uid),
       fbGetAllTeachers()
     ]);
 
+    // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
+    // auth.signOut()을 호출하면 onAuthStateChanged 중복 실행 버그 발생 → 제거
     if (!teacher) {
-      toast('계정 데이터를 찾을 수 없습니다. 관리자에게 문의하세요.', 'danger');
-      await auth.signOut();
-      state.view = 'login';
-      return;
+      const isAdmin = allTeachers.length === 0;
+      await fbSaveTeacher(fbUser.uid, {
+        name: fbUser.email.split('@')[0],
+        email: fbUser.email,
+        phone: '',
+        status: 'teaching',
+        note: '',
+        isAdmin,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      teacher = await fbGetTeacher(fbUser.uid);
+      allTeachers = await fbGetAllTeachers();
     }
 
     state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
 
     if (teacher.isAdmin) {
-      // 이미 allTeachers 조회 완료 — 학생만 추가 조회
       const teacherIds = allTeachers.map(t => t.id);
       const allStudents = await fbGetAllStudents(teacherIds);
       masterState.teachers = allTeachers.map(t => ({
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
-      const adminStudents = allStudents.filter(s => s.teacherId === fbUser.uid);
-      state.currentTeacher = { ...teacher, students: adminStudents };
-      state.students = adminStudents.map(s => s.name);
-      state.view = 'home';
     } else {
-      // 일반 교사: 본인 학생만 조회
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };
       state.currentTeacher = teacherWithStudents;
@@ -4427,12 +4752,13 @@ async function onAuthLogin(fbUser) {
       const idx = masterState.teachers.findIndex(t => t.id === fbUser.uid);
       if (idx >= 0) masterState.teachers[idx] = teacherWithStudents;
       else masterState.teachers.push(teacherWithStudents);
-      state.view = 'home';
     }
+
+    state.view = 'home';
   } catch (e) {
     console.error('onAuthLogin error:', e);
-    toast('데이터 로드 중 오류가 발생했습니다.', 'danger');
-    state.view = 'login';
+    toast('데이터 로드 중 오류: ' + (e.message || e), 'danger');
+    state.view = 'home'; // 오류 시에도 홈으로 (로그인 루프 방지)
   }
 }
 
@@ -4444,19 +4770,46 @@ async function onAuthLogin(fbUser) {
 (async function init() {
   try {
     await loadAll(); // localStorage에서 단원 데이터 로드
-    render(); // Firebase 상태 확인 전에도 첫 화면은 로그인으로 표시
 
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
+    // _signingUp 플래그: 회원가입 중 중복 실행 방지
     auth.onAuthStateChanged(async (fbUser) => {
+      if (window._signingUp) return;
+
+      state.view = 'loading';
+      render();
+
       if (fbUser) {
-        state.view = 'loading';
-        render();
+        // Firebase 로그인 상태: Firestore에서 교사 데이터 로드
         await onAuthLogin(fbUser);
       } else {
-        state.currentUser = null;
-        state.currentTeacher = null;
-        state.view = 'login';
+        // 비로그인 상태: Firestore에 교사가 있으면 첫 교사로 자동 진입 (테스트 모드)
+        try {
+          const teachers = await fbGetAllTeachers();
+          if (teachers.length === 0) {
+            state.view = 'signup';
+          } else {
+            const first = teachers.find(t => t.isAdmin) || teachers[0];
+            state.currentUser = { uid: first.id, email: first.email || '', ...first };
+            if (first.isAdmin) {
+              const allStudents = await fbGetAllStudents(teachers.map(t => t.id));
+              masterState.teachers = teachers.map(t => ({
+                ...t, students: allStudents.filter(s => s.teacherId === t.id)
+              }));
+            } else {
+              const students = await fbGetStudents(first.id);
+              state.currentTeacher = { ...first, students };
+              state.students = students.map(s => s.name);
+              masterState.teachers = [state.currentTeacher];
+            }
+            state.view = 'home';
+          }
+        } catch (e) {
+          console.error('Auto-login error:', e);
+          state.view = 'signup';
+        }
       }
+
       render();
     });
   } catch (e) {
