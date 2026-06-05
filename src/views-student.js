@@ -627,7 +627,8 @@ function renderLineMatchGame() {
 
   if (g.connections.length === g.total) { showResult(); return el('div'); }
 
-  const wrap = el('div', { style: 'position:relative; min-height:320px' });
+  // wrap: flex row로 두 컬럼을 나란히 배치, SVG는 absolute로 그 위에 덮음
+  const wrap = el('div', { style: 'position:relative; display:flex; flex-direction:row; gap:0; align-items:flex-start' });
   wrap.id = 'lm-wrap';
 
   // SVG 오버레이
@@ -637,14 +638,15 @@ function renderLineMatchGame() {
   svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1';
   wrap.appendChild(svg);
 
-  const leftCol  = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%' });
-  const rightCol = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%;margin-left:auto' });
+  const leftCol  = el('div', { style: 'flex:1;z-index:2;display:flex;flex-direction:column;gap:10px;position:relative' });
+  const rightCol = el('div', { style: 'flex:1;z-index:2;display:flex;flex-direction:column;gap:10px;position:relative' });
 
+  const ITEM_MIN_H = '52px'; // 좌우 높이 통일
   const makeItem = (item, side) => {
     const alreadyMatched = g.connections.some(c => c.id === item.id);
     const div = el('div', {
       class: 'lm-item' + (alreadyMatched ? ' lm-matched' : ''),
-      style: `cursor:${alreadyMatched ? 'default' : 'pointer'}`,
+      style: `cursor:${alreadyMatched ? 'default' : 'pointer'};min-height:${ITEM_MIN_H};justify-content:${side === 'left' ? 'space-between' : 'flex-start'}`,
       onClick: () => {
         if (alreadyMatched) return;
         if (side === 'left') {
