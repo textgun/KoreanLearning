@@ -2401,24 +2401,26 @@ function renderTeacher() {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
     const list = el('div', { class: 'unit-list' });
-    state.units.forEach(u => {
+    state.units.forEach((u, uIdx) => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
       info.appendChild(el('h4', {}, u.title));
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
-      
+
       if (!isTraining) {
         const actions = el('div', { class: 'unit-actions' });
-        
+
+        actions.appendChild(makeMoveButtons(state.units, uIdx, () => { persistAll(); render(); }));
+
         const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => editUnit(u.id) });
         editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
         editBtn.appendChild(document.createTextNode('편집'));
         actions.appendChild(editBtn);
-        
+
         const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
         delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
         actions.appendChild(delBtn);
-        
+
         item.append(info, actions);
       } else {
         const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:#f1f5f9; border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
@@ -2687,6 +2689,9 @@ function renderTeacherEdit() {
 
   unit.vocabulary.forEach((v, i) => {
     const item = el('div', { class: 'vocab-edit-item' });
+    const itemHead = el('div', { style: 'display:flex; justify-content:flex-end; margin-bottom:4px' });
+    itemHead.appendChild(makeMoveButtons(unit.vocabulary, i, () => { persistAll(); render(); }));
+    item.appendChild(itemHead);
     const grid = el('div', { class: 'vocab-edit-grid' });
     const emojiIn = el('input', { type: 'text', value: v.emoji || '', placeholder: '😀' });
     emojiIn.oninput = () => { v.emoji = emojiIn.value; };
@@ -2743,14 +2748,17 @@ function renderTeacherEdit() {
     item.appendChild(el('label', { style: 'margin-top:8px' }, '예문 (한 줄에 하나)'));
     item.appendChild(exTa);
     
-    const delGbtn = el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px; display:inline-flex; align-items:center; gap:4px', onClick: () => { unit.grammar.splice(i, 1); persistAll(); render(); }});
+    const delGbtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => { unit.grammar.splice(i, 1); persistAll(); render(); }});
     delGbtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
     delGbtn.appendChild(document.createTextNode('삭제'));
-    item.appendChild(delGbtn);
-    
+    const grBtnRow = el('div', { style: 'display:flex; align-items:center; gap:8px; margin-top:8px' });
+    grBtnRow.appendChild(makeMoveButtons(unit.grammar, i, () => { persistAll(); render(); }));
+    grBtnRow.appendChild(delGbtn);
+    item.appendChild(grBtnRow);
+
     grPanel.appendChild(item);
   });
-  
+
   const addGrBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px; display:flex; align-items:center; justify-content:center; gap:6px', onClick: () => addGrammar(unit) });
   addGrBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
   addGrBtn.appendChild(document.createTextNode('문법 추가하기'));
@@ -2767,40 +2775,72 @@ function renderTeacherEdit() {
 
   unit.quizzes.forEach((q, i) => {
     const item = el('div', { class: 'quiz-edit-item' });
-    item.appendChild(el('label', {}, `Q${i + 1} 문제 (___ 을 빈칸으로 사용)`));
-    const qIn = el('input', { type: 'text', value: q.question, placeholder: '예) 도서관 ___ 책을 읽어요' });
-    qIn.oninput = () => { q.question = qIn.value; };
-    item.appendChild(qIn);
+    const qType = q.type || 'choice';
+    item.appendChild(el('div', { style: 'font-size:0.8rem; font-weight:700; color:var(--primary); margin-bottom:6px' },
+      qType === 'linematch' ? `Q${i + 1} · 선긋기` : `Q${i + 1} · 4지선다`));
 
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '4개 보기 (정답 위치를 선택)'));
-    (q.options || ['', '', '', '']).forEach((opt, oi) => {
-      const row = el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom:6px' });
-      const radio = el('input', { type: 'radio', name: `qc_${i}`, style: 'flex:0' });
-      radio.checked = q.correct === oi;
-      radio.onchange = () => { q.correct = oi; };
-      const optIn = el('input', { type: 'text', value: opt, placeholder: `보기 ${oi + 1}`, style: 'flex:1' });
-      optIn.oninput = () => { q.options[oi] = optIn.value; };
-      row.append(radio, optIn);
-      item.appendChild(row);
-    });
+    if (qType === 'linematch') {
+      if (!q.pairs) q.pairs = [];
+      item.appendChild(el('label', {}, '왼쪽 / 오른쪽 쌍 (학생이 선으로 연결)'));
+      q.pairs.forEach((p, pi) => {
+        const row = el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom:6px' });
+        const leftIn = el('input', { type: 'text', value: p.left || '', placeholder: `왼쪽 ${pi + 1}`, style: 'flex:1' });
+        leftIn.oninput = () => { p.left = leftIn.value; };
+        const rightIn = el('input', { type: 'text', value: p.right || '', placeholder: `오른쪽 ${pi + 1}`, style: 'flex:1' });
+        rightIn.oninput = () => { p.right = rightIn.value; };
+        const delPairBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; justify-content:center;', onClick: () => { q.pairs.splice(pi, 1); render(); }});
+        delPairBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
+        row.append(leftIn, rightIn, delPairBtn);
+        item.appendChild(row);
+      });
+      const addPairBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; margin-top:4px', onClick: () => { q.pairs.push({ left: '', right: '' }); render(); }});
+      addPairBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:13px; height:13px;' }));
+      addPairBtn.appendChild(document.createTextNode('쌍 추가'));
+      item.appendChild(addPairBtn);
+    } else {
+      item.appendChild(el('label', {}, `문제 (___ 을 빈칸으로 사용)`));
+      const qIn = el('input', { type: 'text', value: q.question, placeholder: '예) 도서관 ___ 책을 읽어요' });
+      qIn.oninput = () => { q.question = qIn.value; };
+      item.appendChild(qIn);
 
-    const hintIn = el('input', { type: 'text', value: (q.hint && q.hint.en) || '', placeholder: 'English hint' });
-    hintIn.oninput = () => { if (!q.hint) q.hint = {}; q.hint.en = hintIn.value; };
-    item.appendChild(el('label', { style: 'margin-top:8px' }, '힌트 (English)'));
-    item.appendChild(hintIn);
+      item.appendChild(el('label', { style: 'margin-top:8px' }, '4개 보기 (정답 위치를 선택)'));
+      (q.options || ['', '', '', '']).forEach((opt, oi) => {
+        const row = el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom:6px' });
+        const radio = el('input', { type: 'radio', name: `qc_${i}`, style: 'flex:0' });
+        radio.checked = q.correct === oi;
+        radio.onchange = () => { q.correct = oi; };
+        const optIn = el('input', { type: 'text', value: opt, placeholder: `보기 ${oi + 1}`, style: 'flex:1' });
+        optIn.oninput = () => { q.options[oi] = optIn.value; };
+        row.append(radio, optIn);
+        item.appendChild(row);
+      });
 
-    const delQbtn = el('button', { class: 'btn btn-danger btn-sm', style: 'margin-top:8px; display:inline-flex; align-items:center; gap:4px', onClick: () => { unit.quizzes.splice(i, 1); persistAll(); render(); }});
+      const hintIn = el('input', { type: 'text', value: (q.hint && q.hint.en) || '', placeholder: 'English hint' });
+      hintIn.oninput = () => { if (!q.hint) q.hint = {}; q.hint.en = hintIn.value; };
+      item.appendChild(el('label', { style: 'margin-top:8px' }, '힌트 (English)'));
+      item.appendChild(hintIn);
+    }
+
+    const delQbtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => { unit.quizzes.splice(i, 1); persistAll(); render(); }});
     delQbtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
     delQbtn.appendChild(document.createTextNode('삭제'));
-    item.appendChild(delQbtn);
-    
+    const qzBtnRow = el('div', { style: 'display:flex; align-items:center; gap:8px; margin-top:8px' });
+    qzBtnRow.appendChild(makeMoveButtons(unit.quizzes, i, () => { persistAll(); render(); }));
+    qzBtnRow.appendChild(delQbtn);
+    item.appendChild(qzBtnRow);
+
     qzPanel.appendChild(item);
   });
-  
-  const addQzBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:14px; padding:14px; display:flex; align-items:center; justify-content:center; gap:6px', onClick: () => addQuiz(unit) });
+
+  const addQzRow = el('div', { style: 'display:flex; gap:8px; margin-top:14px' });
+  const addQzBtn = el('button', { class: 'btn btn-primary', style: 'flex:1; padding:14px; display:flex; align-items:center; justify-content:center; gap:6px', onClick: () => addQuiz(unit, 'choice') });
   addQzBtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:16px; height:16px; color:#fff;' }));
-  addQzBtn.appendChild(document.createTextNode('퀴즈 추가하기'));
-  qzPanel.appendChild(addQzBtn);
+  addQzBtn.appendChild(document.createTextNode('4지선다 추가'));
+  const addLmBtn = el('button', { class: 'btn btn-primary', style: 'flex:1; padding:14px; display:flex; align-items:center; justify-content:center; gap:6px', onClick: () => addQuiz(unit, 'linematch') });
+  addLmBtn.appendChild(el('i', { 'data-lucide': 'git-branch', style: 'width:16px; height:16px; color:#fff;' }));
+  addLmBtn.appendChild(document.createTextNode('선긋기 추가'));
+  addQzRow.append(addQzBtn, addLmBtn);
+  qzPanel.appendChild(addQzRow);
   root.appendChild(qzPanel);
 
   // Save
@@ -2836,11 +2876,32 @@ function addGrammar(unit) {
   scrollToNewItem('.grammar-edit-item', 'input[type="text"]');
 }
 
-function addQuiz(unit) {
+function addQuiz(unit, type = 'choice') {
   if (!unit.quizzes) unit.quizzes = [];
-  unit.quizzes.push({ question: '', options: ['', '', '', ''], correct: 0, hint: {} });
+  if (type === 'linematch') {
+    unit.quizzes.push({ type: 'linematch', pairs: [{ left: '', right: '' }, { left: '', right: '' }] });
+  } else {
+    unit.quizzes.push({ type: 'choice', question: '', options: ['', '', '', ''], correct: 0, hint: {} });
+  }
   render();
   scrollToNewItem('.quiz-edit-item', 'input[type="text"]');
+}
+
+function makeMoveButtons(arr, idx, persistAndRender) {
+  const wrap = el('div', { style: 'display:inline-flex; gap:2px' });
+  const btnStyle = 'padding:0 8px; min-height:28px; font-size:0.9rem; line-height:1;';
+  const up = el('button', {
+    class: 'btn btn-ghost btn-sm',
+    style: btnStyle + (idx === 0 ? ' opacity:0.3; pointer-events:none' : ''),
+    onClick: () => { [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]]; persistAndRender(); }
+  }, '↑');
+  const dn = el('button', {
+    class: 'btn btn-ghost btn-sm',
+    style: btnStyle + (idx === arr.length - 1 ? ' opacity:0.3; pointer-events:none' : ''),
+    onClick: () => { [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]]; persistAndRender(); }
+  }, '↓');
+  wrap.append(up, dn);
+  return wrap;
 }
 
 function scrollToNewItem(itemSelector, focusSelector) {
@@ -3150,17 +3211,7 @@ function renderAdmin() {
   head.appendChild(title);
   
   const headBtns = el('div', { style: 'display:flex; gap:8px' });
-  const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
-  
-  const aiBtn = el('button', {
-    class: 'btn btn-sm',
-    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}; display:inline-flex; align-items:center; gap:4px`,
-    onClick: showApiKeyModal
-  });
-  aiBtn.appendChild(el('i', { 'data-lucide': _pi.icon, style: 'width:13px; height:13px;' }));
-  aiBtn.appendChild(document.createTextNode(_pk ? ' AI 설정 ✓' : ' AI 설정'));
-  headBtns.appendChild(aiBtn);
-  
+
   const addTbtn = el('button', { class: 'btn btn-primary', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showTeacherModal() });
   addTbtn.appendChild(el('i', { 'data-lucide': 'plus', style: 'width:15px; height:15px; color:#fff;' }));
   addTbtn.appendChild(document.createTextNode('교사 추가'));
@@ -4164,7 +4215,7 @@ function renderLineMatchGame() {
 
   if (g.connections.length === g.total) { showResult(); return el('div'); }
 
-  const wrap = el('div', { style: 'position:relative; min-height:320px' });
+  const wrap = el('div', { style: 'position:relative; min-height:320px; display:flex; align-items:flex-start' });
   wrap.id = 'lm-wrap';
 
   // SVG 오버레이
@@ -4495,6 +4546,7 @@ function renderPdfQuizGame() {
   const g = state.game;
   const q = g.questions[g.index];
   if (!q) { showResult(); return el('div'); }
+  if ((q.type || 'choice') === 'linematch') return renderPdfLineMatch(g, q);
   const root = el('div');
 
   const sentence = el('div', { class: 'quiz-question' });
@@ -4533,6 +4585,119 @@ function answerPdfQuiz(idx, q) {
     toast(`오답: ${q.options[q.correct]}`, 'danger');
   }
   setTimeout(() => { g.index++; if (g.index >= g.total) showResult(); else render(); }, 1700);
+}
+
+/* ---------- PDF Quiz (선긋기) ---------- */
+function renderPdfLineMatch(g, q) {
+  if (!g.lm || g.lmIndex !== g.index) {
+    const pairs = (q.pairs || []).map((p, i) => ({ id: 'p' + i, left: p.left, right: p.right }));
+    g.lm = {
+      leftItems: shuffle(pairs.map(p => ({ id: p.id, text: p.left }))),
+      rightItems: shuffle(pairs.map(p => ({ id: p.id, text: p.right }))),
+      connections: [], selectedLeft: null, selectedRight: null, total: pairs.length
+    };
+    g.lmIndex = g.index;
+  }
+  const lm = g.lm;
+  const root = el('div');
+
+  if (lm.total === 0) { setTimeout(() => { g.lm = null; g.index++; if (g.index >= g.total) showResult(); else render(); }, 0); return root; }
+
+  const wrap = el('div', { style: 'position:relative; min-height:320px; display:flex; align-items:flex-start' });
+  wrap.id = 'lm-wrap';
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.id = 'lm-svg';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1';
+
+  const leftCol  = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%' });
+  const rightCol = el('div', { style: 'position:relative;z-index:2;display:flex;flex-direction:column;gap:12px;width:44%;margin-left:auto' });
+
+  const makeItem = (item, side) => {
+    const alreadyMatched = lm.connections.some(c => c.id === item.id);
+    const div = el('div', {
+      class: 'lm-item' + (alreadyMatched ? ' lm-matched' : ''),
+      style: `cursor:${alreadyMatched ? 'default' : 'pointer'}`,
+      onClick: () => {
+        if (alreadyMatched) return;
+        if (side === 'left') {
+          document.querySelectorAll('.lm-item.lm-selected-left').forEach(e => e.classList.remove('lm-selected-left'));
+          div.classList.toggle('lm-selected-left');
+          lm.selectedLeft = div.classList.contains('lm-selected-left') ? item : null;
+        } else {
+          document.querySelectorAll('.lm-item.lm-selected-right').forEach(e => e.classList.remove('lm-selected-right'));
+          div.classList.toggle('lm-selected-right');
+          lm.selectedRight = div.classList.contains('lm-selected-right') ? item : null;
+        }
+        tryPdfLineMatch(g, q);
+      }
+    });
+    div.dataset.id = item.id;
+    div.dataset.side = side;
+    if (side === 'left') {
+      div.appendChild(document.createTextNode(item.text));
+      div.appendChild(el('span', { class: 'lm-dot lm-dot-right' }));
+    } else {
+      div.appendChild(el('span', { class: 'lm-dot lm-dot-left' }));
+      div.appendChild(document.createTextNode(item.text));
+    }
+    return div;
+  };
+
+  lm.leftItems.forEach(item  => leftCol.appendChild(makeItem(item, 'left')));
+  lm.rightItems.forEach(item => rightCol.appendChild(makeItem(item, 'right')));
+
+  wrap.append(svg, leftCol, rightCol);
+  root.appendChild(wrap);
+
+  setTimeout(() => {
+    lm.connections.forEach(conn => drawSVGLine(conn.leftEl, conn.rightEl, true));
+  }, 50);
+
+  root.appendChild(el('p', { class: 'text-muted', style: 'text-align:center;margin-top:12px' },
+    `${lm.connections.length}/${lm.total} 연결`));
+  return root;
+}
+
+function tryPdfLineMatch(g, q) {
+  const lm = g.lm;
+  if (!lm.selectedLeft || !lm.selectedRight) return;
+  const lEl = document.querySelector(`.lm-item[data-id="${lm.selectedLeft.id}"][data-side="left"]`);
+  const rEl = document.querySelector(`.lm-item[data-id="${lm.selectedRight.id}"][data-side="right"]`);
+  if (!lEl || !rEl) return;
+
+  if (lm.selectedLeft.id === lm.selectedRight.id) {
+    lEl.classList.remove('lm-selected-left'); lEl.classList.add('lm-matched');
+    rEl.classList.remove('lm-selected-right'); rEl.classList.add('lm-matched');
+    const line = drawSVGLine(lEl, rEl, true);
+    lm.connections.push({ id: lm.selectedLeft.id, leftEl: lEl, rightEl: rEl, lineEl: line });
+    g.score += 20 + g.combo * 5; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo); g.correct++;
+    addXP(15); state.stats.streak++;
+    toast(`연결! +${20 + g.combo * 5}`, 'success');
+    if (lm.connections.length === lm.total) {
+      setTimeout(() => {
+        g.lm = null;
+        g.index++;
+        if (g.index >= g.total) showResult(); else render();
+      }, 700);
+      return;
+    }
+  } else {
+    lEl.classList.add('lm-wrong'); rEl.classList.add('lm-wrong');
+    const tmpLine = drawSVGLine(lEl, rEl, false);
+    g.wrong++; g.combo = 0; state.stats.streak = 0;
+    toast('틀렸습니다!', 'danger');
+    setTimeout(() => {
+      lEl.classList.remove('lm-wrong', 'lm-selected-left');
+      rEl.classList.remove('lm-wrong', 'lm-selected-right');
+      if (tmpLine) tmpLine.remove();
+    }, 600);
+  }
+  lm.selectedLeft = null; lm.selectedRight = null;
+  const prog = document.querySelector('[class="text-muted"]');
+  if (prog) prog.textContent = `${lm.connections.length}/${lm.total} 연결`;
+  if (window.lucide) window.lucide.createIcons();
 }
 
 /* =========================================================
@@ -4744,6 +4909,10 @@ async function onAuthLogin(fbUser) {
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
+      const myStudents = allStudents.filter(s => s.teacherId === fbUser.uid);
+      const teacherWithStudents = { ...teacher, students: myStudents };
+      state.currentTeacher = teacherWithStudents;
+      state.students = myStudents.map(s => s.name);
     } else {
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };
@@ -4796,6 +4965,10 @@ async function onAuthLogin(fbUser) {
               masterState.teachers = teachers.map(t => ({
                 ...t, students: allStudents.filter(s => s.teacherId === t.id)
               }));
+              const myStudents = allStudents.filter(s => s.teacherId === first.id);
+              const teacherWithStudents = { ...first, students: myStudents };
+              state.currentTeacher = teacherWithStudents;
+              state.students = myStudents.map(s => s.name);
             } else {
               const students = await fbGetStudents(first.id);
               state.currentTeacher = { ...first, students };
