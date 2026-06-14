@@ -519,7 +519,7 @@ label {
 
 .vocab-edit-grid {
   display: grid;
-  grid-template-columns: 76px 1.15fr 1fr 1fr auto;
+  grid-template-columns: 76px 1.15fr 1fr 1fr auto auto;
   gap: 8px;
   align-items: center;
 }
@@ -2702,11 +2702,18 @@ function renderTeacherEdit() {
     romanIn.oninput = () => { v.romanization = romanIn.value; };
     const meaningIn = el('input', { type: 'text', value: (v.translations && v.translations.en) || '', placeholder: 'English' });
     meaningIn.oninput = () => { if (!v.translations) v.translations = {}; v.translations.en = meaningIn.value; };
-    
+
+    const regenBtn = el('button', {
+      class: 'btn btn-ghost btn-sm', title: 'AI로 이모지 재추천',
+      style: 'display:inline-flex; align-items:center; justify-content:center;',
+      onClick: async () => { await autoFillEmoji(v, emojiIn, true); render(); }
+    });
+    regenBtn.appendChild(el('i', { 'data-lucide': 'refresh-cw', style: 'width:13px; height:13px;' }));
+
     const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; justify-content:center;', onClick: () => { unit.vocabulary.splice(i, 1); persistAll(); render(); }});
     delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
-    
-    grid.append(emojiIn, wordIn, romanIn, meaningIn, delBtn);
+
+    grid.append(emojiIn, wordIn, romanIn, meaningIn, regenBtn, delBtn);
     item.appendChild(grid);
     vocabPanel.appendChild(item);
   });
@@ -2922,8 +2929,13 @@ function scrollToNewItem(itemSelector, focusSelector) {
   }, 100);
 }
 
-async function autoFillEmoji(v, emojiInput) {
-  if (!v.word || (v.emoji && v.emoji !== '📝') || !getApiKey(getProvider())) return;
+async function autoFillEmoji(v, emojiInput, force = false) {
+  if (!v.word) return;
+  if (!force && v.emoji && v.emoji !== '📝') return;
+  if (!getApiKey(getProvider())) {
+    if (force) toast('⚠️ AI 설정을 먼저 완료하세요 (상단 버튼)', 'danger');
+    return;
+  }
   try {
     const text = await callAI(`Korean word: "${v.word}". Reply with ONLY one emoji. Nothing else.`);
     const match = text.trim().match(/\p{Extended_Pictographic}/u);
@@ -2932,8 +2944,12 @@ async function autoFillEmoji(v, emojiInput) {
       v.emoji = emoji;
       if (emojiInput) emojiInput.value = emoji;
       persistAll();
+    } else if (force) {
+      toast('이모지를 찾지 못했습니다', 'danger');
     }
-  } catch (e) {}
+  } catch (e) {
+    if (force) toast('이모지 추천 실패: ' + (e.message || e), 'danger');
+  }
 }
 
 async function autoTranslateVocab(v) {
