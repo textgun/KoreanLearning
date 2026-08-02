@@ -128,6 +128,11 @@ async function onAuthLogin(fbUser) {
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
+
+      // 관리자도 자기 학생을 가르친다. 본인 교사 컨텍스트를 채우지 않으면
+      // 교사 모드에서 명단이 비어 보이고 '학생 등록'이 null 참조로 터진다
+      state.currentTeacher = masterState.teachers.find(t => t.id === fbUser.uid) || { ...teacher, id: fbUser.uid, students: [] };
+      state.students = (state.currentTeacher.students || []).map(s => s.name);
     } else {
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };

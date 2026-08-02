@@ -31,6 +31,15 @@ function render() {
     v = 'login';
   }
 
+  // 학생이 학습 중일 때는 교사·관리자 화면으로 넘어갈 수 없다.
+  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다
+  const staffViews = ['home', 'teacher', 'teacher-create', 'teacher-edit',
+                      'teacher-progress', 'admin', 'admin-teacher', 'student-select'];
+  if (state.currentStudent && staffViews.includes(v)) {
+    state.view = 'student';
+    v = 'student';
+  }
+
 
   const map = {
     'loading': renderLoadingPage,
@@ -55,9 +64,12 @@ function renderTopbar() {
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const statsRow = el('div', { class: 'stats-row' });
   const authViews = ['login', 'signup', 'forgot-password'];
+  const inStudentMode = !!state.currentStudent;
 
-  if (!authViews.includes(state.view) && state.view !== 'home') {
-    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, [
+  // 학생 모드의 홈은 단원 목록이다. 교사 화면으로 빠지지 않는다
+  const atTop = state.view === 'home' || (inStudentMode && state.view === 'student');
+  if (!authViews.includes(state.view) && !atTop) {
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: inStudentMode ? goStudentHome : goHome }, [
       el('i', { 'data-lucide': 'home', style: 'width:16px; height:16px; display:block;' })
     ]));
   }
@@ -68,29 +80,39 @@ function renderTopbar() {
       const lang = getLangInfo();
       statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
     }
-    // 관리자 버튼 (admin만)
-    if (state.currentUser.isAdmin) {
+    // 관리자 버튼 (admin만, 학생 학습 중에는 숨긴다)
+    if (state.currentUser.isAdmin && !inStudentMode) {
       statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); } }, [
         el('i', { 'data-lucide': 'shield', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }),
         '관리자'
       ]));
     }
-    // 로그인 유저 이름
-    const icon = state.currentUser.isAdmin ? 'crown' : state.currentTeacher ? 'book-open' : 'graduation-cap';
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
-      el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
-      state.currentUser.name
-    ]));
+    // 로그인 유저 이름 (학생 학습 중에는 교사 이름을 노출하지 않는다)
+    if (!inStudentMode) {
+      const icon = state.currentUser.isAdmin ? 'crown' : 'book-open';
+      statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
+        el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
+        state.currentUser.name
+      ]));
+    }
     // 학생 XP/레벨
     if (state.currentStudent) {
       statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
       statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
       if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
     }
-    // 로그아웃
-    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' }, [
-      el('i', { 'data-lucide': 'log-out', style: 'width:15px; height:15px;' })
-    ]));
+    // 학생 학습 중에는 로그아웃 대신 '학생 모드 종료'만 둔다.
+    // 학생이 교사 계정을 로그아웃시키는 것을 막는다
+    if (inStudentMode) {
+      const exitBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: exitStudentMode, title: '학생 모드 종료' });
+      exitBtn.appendChild(el('i', { 'data-lucide': 'door-open', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
+      exitBtn.appendChild(document.createTextNode('종료'));
+      statsRow.appendChild(exitBtn);
+    } else {
+      statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' }, [
+        el('i', { 'data-lucide': 'log-out', style: 'width:15px; height:15px;' })
+      ]));
+    }
   }
 
   bar.appendChild(statsRow);
@@ -105,12 +127,28 @@ function goHome() {
     state.currentStudentDoc = null;
     state.stats = defaultStats();
   }
-  state.currentTeacher = null;
+  // state.currentTeacher는 로그인 시 정해지는 소속 정보라 여기서 비우지 않는다.
+  // 비우면 홈을 거쳐 교사 모드에 들어갔을 때 학생 명단이 사라진다
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
   state.game = null;
   render();
+}
+
+// 학생 모드의 홈. 교사 화면으로 나가지 않고 단원 목록으로만 돌아간다
+function goStudentHome() {
+  state.view = 'student';
+  state.currentUnitId = null;
+  state.currentActivity = null;
+  state.game = null;
+  render();
+}
+
+async function exitStudentMode() {
+  const ok = await showConfirm('학생 모드 종료', '학습을 마치고 교사 화면으로 돌아갑니다.\n지금까지의 진행 상황은 저장됩니다.');
+  if (!ok) return;
+  goHome();
 }
 
 function showApiKeyModal() {
