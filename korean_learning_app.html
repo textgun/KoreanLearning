@@ -1427,6 +1427,15 @@ const LANGS = [
   { code: 'hi', name: 'हिन्दी',      flag: '🇮🇳' }
 ];
 
+// 단원 난이도 4단계. 교사·학생 화면 모두 이 순서대로 묶어 보여준다
+const LEVELS = [
+  { code: 'basic',        name: '기초',   icon: 'sprout',      color: '#10b981' },
+  { code: 'intermediate', name: '중급',   icon: 'trending-up', color: '#3b82f6' },
+  { code: 'advanced',     name: '고급',   icon: 'flame',       color: '#f59e0b' },
+  { code: 'master',       name: '마스터', icon: 'crown',       color: '#8b5cf6' }
+];
+const DEFAULT_LEVEL = 'basic';
+
 const SAMPLE_UNIT = {
   id: 1,
   title: '9단원 - 공원에서 산책했어요',
@@ -1840,6 +1849,17 @@ function toast(msg, type = '') {
   setTimeout(() => t.className = '', 2200);
 }
 function getLangInfo() { return LANGS.find(l => l.code === state.language) || LANGS[0]; }
+
+// 단원을 난이도 순서대로 묶는다. 단원이 없는 난이도는 결과에서 제외한다.
+// level이 없거나 아는 값이 아니면 기초로 본다.
+// 모르는 값을 그냥 두면 어느 그룹에도 안 들어가 단원이 화면에서 사라진다
+function groupUnitsByLevel(units) {
+  const codes = LEVELS.map(l => l.code);
+  const levelOf = u => (codes.includes(u.level) ? u.level : DEFAULT_LEVEL);
+  return LEVELS
+    .map(lv => ({ level: lv, units: units.filter(u => levelOf(u) === lv.code) }))
+    .filter(g => g.units.length > 0);
+}
 function getTranslation(obj, fallback = '') {
   if (!obj) return fallback;
   return obj[state.language] || obj.en || obj.ko || fallback;
@@ -1993,6 +2013,15 @@ function render() {
     v = 'login';
   }
 
+  // 학생이 학습 중일 때는 교사·관리자 화면으로 넘어갈 수 없다.
+  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다
+  const staffViews = ['home', 'teacher', 'teacher-create', 'teacher-edit',
+                      'teacher-progress', 'admin', 'admin-teacher', 'student-select'];
+  if (state.currentStudent && staffViews.includes(v)) {
+    state.view = 'student';
+    v = 'student';
+  }
+
 
   const map = {
     'loading': renderLoadingPage,
@@ -2017,9 +2046,12 @@ function renderTopbar() {
   bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
   const statsRow = el('div', { class: 'stats-row' });
   const authViews = ['login', 'signup', 'forgot-password'];
+  const inStudentMode = !!state.currentStudent;
 
-  if (!authViews.includes(state.view) && state.view !== 'home') {
-    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: goHome }, [
+  // 학생 모드의 홈은 단원 목록이다. 교사 화면으로 빠지지 않는다
+  const atTop = state.view === 'home' || (inStudentMode && state.view === 'student');
+  if (!authViews.includes(state.view) && !atTop) {
+    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: inStudentMode ? goStudentHome : goHome }, [
       el('i', { 'data-lucide': 'home', style: 'width:16px; height:16px; display:block;' })
     ]));
   }
@@ -2030,29 +2062,39 @@ function renderTopbar() {
       const lang = getLangInfo();
       statsRow.appendChild(el('div', { class: 'stat-chip lang', onClick: showLangModal }, `${lang.flag} ${lang.code.toUpperCase()}`));
     }
-    // 관리자 버튼 (admin만)
-    if (state.currentUser.isAdmin) {
+    // 관리자 버튼 (admin만, 학생 학습 중에는 숨긴다)
+    if (state.currentUser.isAdmin && !inStudentMode) {
       statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'admin'; render(); } }, [
         el('i', { 'data-lucide': 'shield', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }),
         '관리자'
       ]));
     }
-    // 로그인 유저 이름
-    const icon = state.currentUser.isAdmin ? 'crown' : state.currentTeacher ? 'book-open' : 'graduation-cap';
-    statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
-      el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
-      state.currentUser.name
-    ]));
+    // 로그인 유저 이름 (학생 학습 중에는 교사 이름을 노출하지 않는다)
+    if (!inStudentMode) {
+      const icon = state.currentUser.isAdmin ? 'crown' : 'book-open';
+      statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
+        el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
+        state.currentUser.name
+      ]));
+    }
     // 학생 XP/레벨
     if (state.currentStudent) {
       statsRow.appendChild(el('div', { class: 'stat-chip level' }, `⭐ Lv.${state.stats.level}`));
       statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
       if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
     }
-    // 로그아웃
-    statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' }, [
-      el('i', { 'data-lucide': 'log-out', style: 'width:15px; height:15px;' })
-    ]));
+    // 학생 학습 중에는 로그아웃 대신 '학생 모드 종료'만 둔다.
+    // 학생이 교사 계정을 로그아웃시키는 것을 막는다
+    if (inStudentMode) {
+      const exitBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: exitStudentMode, title: '학생 모드 종료' });
+      exitBtn.appendChild(el('i', { 'data-lucide': 'door-open', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
+      exitBtn.appendChild(document.createTextNode('종료'));
+      statsRow.appendChild(exitBtn);
+    } else {
+      statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' }, [
+        el('i', { 'data-lucide': 'log-out', style: 'width:15px; height:15px;' })
+      ]));
+    }
   }
 
   bar.appendChild(statsRow);
@@ -2067,12 +2109,28 @@ function goHome() {
     state.currentStudentDoc = null;
     state.stats = defaultStats();
   }
-  state.currentTeacher = null;
+  // state.currentTeacher는 로그인 시 정해지는 소속 정보라 여기서 비우지 않는다.
+  // 비우면 홈을 거쳐 교사 모드에 들어갔을 때 학생 명단이 사라진다
   state.view = 'home';
   state.currentUnitId = null;
   state.currentActivity = null;
   state.game = null;
   render();
+}
+
+// 학생 모드의 홈. 교사 화면으로 나가지 않고 단원 목록으로만 돌아간다
+function goStudentHome() {
+  state.view = 'student';
+  state.currentUnitId = null;
+  state.currentActivity = null;
+  state.game = null;
+  render();
+}
+
+async function exitStudentMode() {
+  const ok = await showConfirm('학생 모드 종료', '학습을 마치고 교사 화면으로 돌아갑니다.\n지금까지의 진행 상황은 저장됩니다.');
+  if (!ok) return;
+  goHome();
 }
 
 function showApiKeyModal() {
@@ -2453,25 +2511,24 @@ function renderTeacher() {
   if (state.units.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
-    const list = el('div', { class: 'unit-list' });
-    state.units.forEach(u => {
+    const makeUnitItem = (u) => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
       info.appendChild(el('h4', {}, u.title));
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
-      
+
       if (!isTraining) {
         const actions = el('div', { class: 'unit-actions' });
-        
+
         const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => editUnit(u.id) });
         editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
         editBtn.appendChild(document.createTextNode('편집'));
         actions.appendChild(editBtn);
-        
+
         const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
         delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
         actions.appendChild(delBtn);
-        
+
         item.append(info, actions);
       } else {
         const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:#f1f5f9; border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
@@ -2479,9 +2536,22 @@ function renderTeacher() {
         viewLabel.appendChild(document.createTextNode('조회 모드'));
         item.append(info, viewLabel);
       }
-      list.appendChild(item);
+      return item;
+    };
+
+    // 난이도별로 묶어 표시한다. 단원이 없는 난이도는 나오지 않는다
+    groupUnitsByLevel(state.units).forEach(g => {
+      const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 8px' });
+      head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:17px; height:17px; color:${g.level.color};` }));
+      head.appendChild(el('span', { style: `font-weight:800; font-size:1rem; color:${g.level.color}` }, g.level.name));
+      head.appendChild(el('span', { style: 'font-size:0.82rem; color:var(--muted); font-weight:600' }, `${g.units.length}개`));
+      head.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
+      panel.appendChild(head);
+
+      const list = el('div', { class: 'unit-list' });
+      g.units.forEach(u => list.appendChild(makeUnitItem(u)));
+      panel.appendChild(list);
     });
-    panel.appendChild(list);
   }
   root.appendChild(panel);
 
@@ -2581,15 +2651,37 @@ async function deleteUnit(id) {
   render();
 }
 
+// 새로 만드는 단원에 붙일 난이도. PDF 변환과 직접 입력이 함께 참조한다
+let _createLevel = DEFAULT_LEVEL;
+
 function renderTeacherCreate() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'teacher'; render(); }}, '← 뒤로'));
-  
+
   const title = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
   title.appendChild(el('i', { 'data-lucide': 'plus-circle', style: 'width:24px; height:24px; color:var(--primary);' }));
   title.appendChild(document.createTextNode('새 단원 만들기'));
   panel.appendChild(title);
+
+  // 난이도 선택. 아래 두 방식(PDF 변환·직접 입력) 모두에 적용된다
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.9rem; font-weight:700; margin:14px 0 6px' }, '난이도'));
+  const levelRow = el('div', { style: 'display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:6px' });
+  LEVELS.forEach(lv => {
+    const active = _createLevel === lv.code;
+    const btn = el('button', {
+      class: 'btn btn-sm',
+      style: `padding:10px 4px; line-height:1.35; font-weight:700;
+              background:${active ? lv.color : '#f1f5f9'}; color:${active ? '#fff' : '#475569'};
+              border:1.5px solid ${active ? lv.color : 'transparent'}`,
+      onClick: () => { _createLevel = lv.code; render(); }
+    });
+    btn.appendChild(el('i', { 'data-lucide': lv.icon, style: `display:block; margin:0 auto 4px; width:17px; height:17px; color:${active ? '#fff' : lv.color};` }));
+    btn.appendChild(document.createTextNode(lv.name));
+    levelRow.appendChild(btn);
+  });
+  panel.appendChild(levelRow);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'font-size:0.82rem; margin-bottom:14px' }, '만든 뒤 단원 편집 화면에서 언제든 바꿀 수 있습니다.'));
 
   const opts = el('div', { class: 'create-options' });
 
@@ -2613,7 +2705,7 @@ function renderTeacherCreate() {
 async function createBlankUnit() {
   const title = await showPrompt('새 단원 만들기', '예: 10단원 - 가족');
   if (!title) return;
-  state.units.push({ id: Date.now(), title, vocabulary: [], grammar: [], quizzes: [] });
+  state.units.push({ id: Date.now(), title, level: _createLevel, vocabulary: [], grammar: [], quizzes: [] });
   await persistAll(true);
   state.currentUnitId = state.units[state.units.length - 1].id;
   state.view = 'teacher-edit';
@@ -2669,6 +2761,7 @@ async function handlePDFUpload(e) {
     const newUnit = {
       id: Date.now(),
       title: parsed.title || '새 단원',
+      level: _createLevel,
       vocabulary: (parsed.vocab || []).map(v => ({
         word: v.w || v.word || v.korean || '',
         romanization: v.r || v.romanization || '',
@@ -2722,6 +2815,17 @@ function renderTeacherEdit() {
   titleInput.oninput = () => { unit.title = titleInput.value; };
   headPanel.appendChild(el('label', { style: 'margin-top:10px' }, '단원 제목'));
   headPanel.appendChild(titleInput);
+
+  // 난이도 변경. 바꾸면 단원 목록에서 해당 그룹으로 이동한다
+  headPanel.appendChild(el('label', { style: 'margin-top:12px' }, '난이도'));
+  const levelSel = el('select', { style: 'width:100%; max-width:220px' });
+  LEVELS.forEach(lv => {
+    const opt = el('option', { value: lv.code }, lv.name);
+    if ((unit.level || DEFAULT_LEVEL) === lv.code) opt.setAttribute('selected', '');
+    levelSel.appendChild(opt);
+  });
+  levelSel.onchange = () => { unit.level = levelSel.value; persistAll(); render(); };
+  headPanel.appendChild(levelSel);
   root.appendChild(headPanel);
 
   // Vocabulary
@@ -3678,15 +3782,24 @@ function renderStudent() {
   if (state.units.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
-    const grid = el('div', { class: 'unit-grid' });
-    state.units.forEach((u, i) => {
-      const tile = el('div', { class: 'unit-tile', onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
-      tile.appendChild(el('div', { class: 'num' }, String(i + 1)));
-      tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
-      tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
-      grid.appendChild(tile);
+    // 난이도별로 묶어 보여준다. 번호는 난이도 안에서 다시 1부터 센다
+    groupUnitsByLevel(state.units).forEach(g => {
+      const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 10px' });
+      head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:18px; height:18px; color:${g.level.color};` }));
+      head.appendChild(el('span', { style: `font-weight:800; font-size:1.05rem; color:${g.level.color}` }, g.level.name));
+      head.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
+      panel.appendChild(head);
+
+      const grid = el('div', { class: 'unit-grid' });
+      g.units.forEach((u, i) => {
+        const tile = el('div', { class: 'unit-tile', style: `border-top-color:${g.level.color}`, onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
+        tile.appendChild(el('div', { class: 'num', style: `color:${g.level.color}` }, String(i + 1)));
+        tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
+        tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
+        grid.appendChild(tile);
+      });
+      panel.appendChild(grid);
     });
-    panel.appendChild(grid);
   }
   root.appendChild(panel);
 
@@ -4801,6 +4914,11 @@ async function onAuthLogin(fbUser) {
         ...t,
         students: allStudents.filter(s => s.teacherId === t.id)
       }));
+
+      // 관리자도 자기 학생을 가르친다. 본인 교사 컨텍스트를 채우지 않으면
+      // 교사 모드에서 명단이 비어 보이고 '학생 등록'이 null 참조로 터진다
+      state.currentTeacher = masterState.teachers.find(t => t.id === fbUser.uid) || { ...teacher, id: fbUser.uid, students: [] };
+      state.students = (state.currentTeacher.students || []).map(s => s.name);
     } else {
       const students = await fbGetStudents(fbUser.uid);
       const teacherWithStudents = { ...teacher, students };
