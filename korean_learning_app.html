@@ -1534,12 +1534,12 @@ async function _withRetry(fn, attempts = 3) {
 }
 
 async function _doSaveTeacher() {
-  // 단원은 교사 계정에 속한다. 로그인 전에는 저장할 곳이 없다
+  // 단원은 교사 계정에 속한다. 로그인 전이거나 학생 세션이면 저장할 곳이 없다
   const uid = state.currentUser && state.currentUser.uid;
-  if (!uid || _savingTeacher) return;
+  if (!uid || state.role !== 'teacher' || _savingTeacher) return;
   _savingTeacher = true;
   try {
-    await _withRetry(() => fbSaveTeacher(uid, { units: state.units, language: state.language }), 3);
+    await _withRetry(() => fbSaveCurriculum(uid, { units: state.units, language: state.language }), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
     return true;
   } catch (e) {
@@ -1603,17 +1603,29 @@ async function _readLocalUnits() {
   return null;
 }
 
-// 로그인한 교사의 단원과 설정을 Firestore에서 읽는다.
-// Firestore에 아직 없으면 이 기기의 옛 데이터를 1회 올린다.
-// 플래그를 두지 않고 "필드가 있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
+// 로그인한 교사의 단원과 설정을 읽는다. 단원은 curricula/{teacherId}에 있다.
+// 교사 문서에는 연락처·주소가 함께 들어 있어 학생에게 열 수 없기 때문에 분리했다.
+// 플래그를 두지 않고 "있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
 async function loadTeacherData(teacher) {
-  state.language = teacher.language || 'en';
+  const uid = teacher.id;
 
-  if (Array.isArray(teacher.units)) {
-    state.units = teacher.units.length > 0 ? teacher.units : [SAMPLE_UNIT];
+  const curriculum = await fbGetCurriculum(uid);
+  if (curriculum && Array.isArray(curriculum.units)) {
+    state.units = curriculum.units.length > 0 ? curriculum.units : [SAMPLE_UNIT];
+    state.language = curriculum.language || 'en';
     return;
   }
 
+  // 1순위 이전 대상. 교사 문서 안에 남아 있는 단원
+  if (Array.isArray(teacher.units)) {
+    state.units = teacher.units.length > 0 ? teacher.units : [SAMPLE_UNIT];
+    state.language = teacher.language || 'en';
+    if (await _doSaveTeacher()) await _stripUnitsFromTeacherDoc(uid);
+    return;
+  }
+
+  // 2순위. 이 기기에만 남아 있는 옛 데이터
+  state.language = teacher.language || 'en';
   const legacy = await _readLocalUnits();
   if (!legacy) { state.units = [SAMPLE_UNIT]; return; }
 
@@ -1626,6 +1638,15 @@ async function loadTeacherData(teacher) {
     await _archiveLocalUnits();
     toast(`이 기기에 있던 단원 ${legacy.units.length}개를 계정으로 옮겼습니다`, 'success');
   }
+}
+
+// curricula로 옮긴 뒤 교사 문서의 단원 필드를 지운다.
+// 남겨두면 다음 마이그레이션 판단이 헷갈리고, 문서만 무겁게 만든다
+async function _stripUnitsFromTeacherDoc(uid) {
+  try {
+    const del = firebase.firestore.FieldValue.delete();
+    await fbSaveTeacher(uid, { units: del, language: del });
+  } catch (e) { console.warn('Teacher doc cleanup failed:', e); }
 }
 
 // 계정으로 옮긴 로컬 단원을 백업 키로 이동시켜 다시 소비되지 않게 한다
@@ -1990,8 +2011,10 @@ let state = {
   units: [],
   currentUnitId: null,
   currentActivity: null,
+  role: null,                // 'teacher' | 'student' — 원격 접속 학생과 교사를 구분
   currentStudent: null,      // 화면에 표시할 학생 이름
   currentStudentDoc: null,   // 학습 기록을 저장할 Firestore 학생 문서 (게스트는 null)
+  classmates: [],            // 리더보드용 같은 반 명단
   currentTeacher: null,
   currentUser: null,
   adminTeacherId: null,
@@ -2014,10 +2037,11 @@ function render() {
   }
 
   // 학생이 학습 중일 때는 교사·관리자 화면으로 넘어갈 수 없다.
-  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다
+  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다.
+  // 원격 접속 학생(role === 'student')도 같은 관문에 걸린다
   const staffViews = ['home', 'teacher', 'teacher-create', 'teacher-edit',
                       'teacher-progress', 'admin', 'admin-teacher', 'student-select'];
-  if (state.currentStudent && staffViews.includes(v)) {
+  if ((state.currentStudent || state.role === 'student') && staffViews.includes(v)) {
     state.view = 'student';
     v = 'student';
   }
@@ -2083,9 +2107,15 @@ function renderTopbar() {
       statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
       if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
     }
-    // 학생 학습 중에는 로그아웃 대신 '학생 모드 종료'만 둔다.
+    // 원격 접속 학생은 돌아갈 교사 화면이 없다. 로그아웃이 맞다
+    if (state.role === 'student') {
+      const outBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' });
+      outBtn.appendChild(el('i', { 'data-lucide': 'log-out', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
+      outBtn.appendChild(document.createTextNode('로그아웃'));
+      statsRow.appendChild(outBtn);
+    // 교사 세션 안의 학생은 로그아웃 대신 '종료'만 둔다.
     // 학생이 교사 계정을 로그아웃시키는 것을 막는다
-    if (inStudentMode) {
+    } else if (inStudentMode) {
       const exitBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: exitStudentMode, title: '학생 모드 종료' });
       exitBtn.appendChild(el('i', { 'data-lucide': 'door-open', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
       exitBtn.appendChild(document.createTextNode('종료'));
@@ -2230,7 +2260,14 @@ function showLangModal() {
   LANGS.forEach(l => {
     const tile = el('div', {
       class: 'lang-tile' + (state.language === l.code ? ' active' : ''),
-      onClick: () => { state.language = l.code; persistAll(); root.innerHTML = ''; render(); }
+      onClick: () => {
+        state.language = l.code;
+        // 학생은 교사의 단원 설정을 바꿀 권한이 없다. 선택은 이 기기에만 남긴다
+        if (state.role === 'student') localStorage.setItem('student_language', l.code);
+        else persistAll();
+        root.innerHTML = '';
+        render();
+      }
     });
     tile.innerHTML = `<span class="flag">${l.flag}</span><div class="name">${l.name}</div>`;
     grid.appendChild(tile);
@@ -2263,6 +2300,9 @@ function renderLoadingPage() {
 }
 
 /* ---------- 로그인 ---------- */
+// 로그인 화면에서 선택한 탭. 학생은 코드+PIN, 교사는 이메일+비밀번호
+let _loginTab = 'teacher';
+
 function renderLoginPage() {
   const root = el('div', { style: 'max-width:420px; margin:60px auto' });
   const panel = el('div', { class: 'panel' });
@@ -2271,7 +2311,27 @@ function renderLoginPage() {
   ttl.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:24px; height:24px; color:var(--primary)' }));
   ttl.appendChild(document.createTextNode('로그인'));
   panel.appendChild(ttl);
-  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:24px' }, '한국어 학습 도구'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:18px' }, '한국어 학습 도구'));
+
+  // 교사 / 학생 탭
+  const tabs = el('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:20px' });
+  [['teacher', '선생님', 'book-open'], ['student', '학생', 'graduation-cap']].forEach(([code, label, icon]) => {
+    const active = _loginTab === code;
+    const tab = el('button', {
+      class: 'btn btn-sm',
+      style: `padding:11px 4px; font-weight:700; background:${active ? 'var(--primary)' : '#f1f5f9'}; color:${active ? '#fff' : '#475569'}`,
+      onClick: () => { _loginTab = code; render(); }
+    });
+    tab.appendChild(el('i', { 'data-lucide': icon, style: `margin-right:5px; width:15px; height:15px; vertical-align:middle; color:${active ? '#fff' : '#64748b'};` }));
+    tab.appendChild(document.createTextNode(label));
+    tabs.appendChild(tab);
+  });
+  panel.appendChild(tabs);
+
+  if (_loginTab === 'student') {
+    root.appendChild(renderStudentLoginForm(panel));
+    return root;
+  }
 
   const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1rem; font-family:inherit; background:var(--surface); box-sizing:border-box;';
   const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: inputStyle + 'margin-bottom:12px' });
@@ -2308,6 +2368,47 @@ function renderLoginPage() {
   pwIn.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
   root.appendChild(panel);
   return root;
+}
+
+// 학생 로그인 양식. 선생님이 알려준 코드와 PIN만 입력한다
+function renderStudentLoginForm(panel) {
+  const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1.05rem; font-family:inherit; background:var(--surface); box-sizing:border-box; letter-spacing:0.06em;';
+
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '학생 코드 (Student Code)'));
+  const codeIn = el('input', { type: 'text', placeholder: 'ABCD-2345', autocomplete: 'off', autocapitalize: 'characters', style: inputStyle + 'margin-bottom:12px; text-transform:uppercase' });
+
+  panel.appendChild(codeIn);
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, 'PIN (6자리)'));
+  const pinIn = el('input', { type: 'password', inputmode: 'numeric', placeholder: '••••••', autocomplete: 'off', style: inputStyle + 'margin-bottom:16px' });
+  panel.appendChild(pinIn);
+
+  const btn = el('button', { class: 'btn btn-primary btn-block btn-lg', onClick: async () => {
+    const code = codeIn.value.trim();
+    const pin = pinIn.value.trim();
+    if (!code || !pin) { toast('코드와 PIN을 입력하세요', 'danger'); return; }
+    btn.disabled = true;
+    btn.textContent = '접속 중...';
+    try {
+      await fbStudentSignIn(code, pin);
+      // onAuthStateChanged가 학생 세션을 연다
+    } catch (e) {
+      const wrong = ['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-email'];
+      toast(wrong.includes(e.code) ? '코드 또는 PIN이 맞지 않습니다' : '접속 실패: ' + e.message, 'danger');
+      btn.disabled = false;
+      btn.textContent = '시작하기';
+    }
+  }}, '시작하기');
+  panel.appendChild(btn);
+
+  panel.appendChild(el('p', { class: 'text-muted', style: 'font-size:0.85rem; margin-top:14px; line-height:1.6; text-align:center; white-space:pre-line' },
+    '코드와 PIN은 선생님께 받으세요.\n잊어버렸다면 선생님이 다시 발급해 줍니다.'));
+
+  pinIn.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+  setTimeout(() => codeIn.focus(), 50);
+
+  const wrap = el('div');
+  wrap.appendChild(panel);
+  return wrap;
 }
 
 /* ---------- 회원가입 ---------- */
@@ -2579,6 +2680,18 @@ function renderTeacher() {
       if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
       
       if (!isTraining) {
+        // 원격 접속 발급 여부를 한눈에 보여준다
+        const hasRemote = !!s.authUid;
+        const remoteBtn = el('button', {
+          class: 'btn btn-ghost btn-sm',
+          style: `padding:2px 8px; min-height:auto; display:inline-flex; align-items:center; gap:3px; margin-right:4px; font-size:0.78rem; font-weight:700; color:${hasRemote ? '#059669' : '#64748b'}`,
+          title: hasRemote ? '원격 접속 재발급' : '원격 접속 발급',
+          onClick: () => showRemoteAccessModal(s)
+        });
+        remoteBtn.appendChild(el('i', { 'data-lucide': hasRemote ? 'smartphone' : 'smartphone-nfc', style: `width:14px; height:14px; color:${hasRemote ? '#059669' : '#94a3b8'};` }));
+        remoteBtn.appendChild(document.createTextNode(hasRemote ? '접속됨' : '원격'));
+        row.appendChild(remoteBtn);
+
         const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#3b82f6; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
         editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
         row.appendChild(editStuBtn);
@@ -3528,6 +3641,122 @@ function renderAdminTeacherDetail() {
   return root;
 }
 
+/* =========================================================
+   학생 원격 접속 발급
+   ========================================================= */
+
+// 계정 생성 → 규칙용 색인 → 학생 문서 연결 순서로 진행한다.
+// 중간에 실패해도 학생 문서가 옛 계정을 가리킨 채 남아 이전 접속이 계속 동작한다
+async function issueRemoteAccess(student) {
+  const teacherId = state.currentTeacher.id;
+  const previousUid = student.authUid || null;
+  const pin = generateStudentPin();
+
+  // 코드가 아주 드물게 겹친다. 겹치면 계정 생성이 막히므로 다시 뽑는다
+  let code, authUid;
+  for (let i = 0; ; i++) {
+    code = generateStudentCode();
+    try {
+      authUid = await fbCreateStudentAuth(code, pin);
+      break;
+    } catch (e) {
+      if (e.code !== 'auth/email-already-in-use' || i >= 4) throw e;
+    }
+  }
+  await fbSaveStudentIndex(authUid, { studentId: student.firestoreId, teacherId, code });
+  await fbUpdateStudent(student.firestoreId, { authUid });
+
+  // 이전 색인을 지우면 옛 코드로는 아무것도 읽지 못한다.
+  // 인증 계정 자체는 서버 없이 삭제할 수 없어 그대로 남지만, 연결이 끊겨 무력하다
+  if (previousUid && previousUid !== authUid) {
+    await fbDeleteStudentIndex(previousUid).catch(e => console.warn('Old index cleanup failed:', e));
+  }
+  student.authUid = authUid;
+  return { code, pin };
+}
+
+function showRemoteAccessModal(student) {
+  const root = $('#modal-root');
+  const close = () => { root.innerHTML = ''; render(); };
+
+  function draw(issued, existingCode) {
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop', onClick: (e) => { if (e.target === backdrop) close(); } });
+    const modal = el('div', { class: 'modal', style: 'max-width:440px' });
+
+    const h = el('h3', { style: 'margin-bottom:10px; display:flex; align-items:center; gap:7px' });
+    h.appendChild(el('i', { 'data-lucide': 'smartphone', style: 'width:19px; height:19px; color:var(--primary);' }));
+    h.appendChild(document.createTextNode(`${student.name} — 원격 접속`));
+    modal.appendChild(h);
+
+    if (issued) {
+      modal.appendChild(el('p', { style: 'font-size:0.88rem; margin-bottom:14px; line-height:1.6; color:#92400e; background:#fef3c7; border-radius:8px; padding:10px 12px' },
+        'PIN은 지금만 보입니다. 창을 닫으면 다시 볼 수 없고, 잊으면 재발급해야 합니다.'));
+
+      const box = el('div', { style: 'background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:18px; text-align:center; margin-bottom:14px' });
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, '학생 코드'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.09em; color:#065f46; margin-bottom:14px' }, issued.code));
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, 'PIN'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.2em; color:#065f46' }, issued.pin));
+      modal.appendChild(box);
+
+      const copyBtn = el('button', { class: 'btn btn-ghost btn-block', style: 'margin-bottom:8px', onClick: async () => {
+        const text = `한국어 학습 접속\n주소: ${location.origin}${location.pathname}\n학생 코드: ${issued.code}\nPIN: ${issued.pin}`;
+        try { await navigator.clipboard.writeText(text); toast('복사했습니다', 'success'); }
+        catch (e) { toast('복사할 수 없습니다. 직접 적어주세요', 'danger'); }
+      }}, '📋 접속 안내 복사');
+      modal.appendChild(copyBtn);
+      modal.appendChild(el('button', { class: 'btn btn-primary btn-block', onClick: close }, '확인했습니다'));
+      backdrop.appendChild(modal);
+      root.appendChild(backdrop);
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    const desc = el('p', { class: 'text-muted', style: 'font-size:0.88rem; line-height:1.65; margin-bottom:14px; white-space:pre-line' });
+    desc.textContent = student.authUid
+      ? '이미 발급된 학생입니다.\nPIN은 다시 볼 수 없습니다. 학생이 잊었다면 재발급하세요.\n재발급하면 이전 코드와 PIN은 즉시 쓸 수 없게 됩니다.'
+      : '학생이 자기 기기에서 접속할 수 있게 코드와 PIN을 만듭니다.\n이메일은 필요하지 않습니다.';
+    modal.appendChild(desc);
+
+    if (existingCode) {
+      const cur = el('div', { style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:center' });
+      cur.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; font-weight:700; margin-bottom:3px' }, '현재 학생 코드'));
+      cur.appendChild(el('div', { style: 'font-size:1.2rem; font-weight:800; letter-spacing:0.08em; color:#334155' }, existingCode));
+      modal.appendChild(cur);
+    }
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: close }, '닫기'));
+    const goBtn = el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      goBtn.disabled = true;
+      goBtn.textContent = '발급 중...';
+      try {
+        draw(await issueRemoteAccess(student), null);
+      } catch (e) {
+        console.error('Remote access issue failed:', e);
+        toast('발급 실패: ' + (e.message || e), 'danger');
+        goBtn.disabled = false;
+        goBtn.textContent = student.authUid ? '재발급' : '발급하기';
+      }
+    }}, student.authUid ? '재발급' : '발급하기');
+    btns.appendChild(goBtn);
+    modal.appendChild(btns);
+
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  draw(null, null);
+  // 이미 발급된 학생이면 현재 코드를 찾아 보여준다 (PIN은 저장하지 않는다)
+  if (student.authUid) {
+    fbGetStudentIndex(student.authUid)
+      .then(idx => { if (idx && idx.code) draw(null, idx.code); })
+      .catch(e => console.warn('Index lookup failed:', e));
+  }
+}
+
 function showTeacherModal(existing = null) {
   return new Promise(resolve => {
     const root = $('#modal-root');
@@ -3660,9 +3889,11 @@ function showEditStudentModal(teacher, student, idx) {
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
       if (duplicate) { toast('이미 등록된 이름입니다', 'danger'); return; }
-      const updatedStudent = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null, teacherId: teacher.id, firestoreId: student.firestoreId };
-      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, updatedStudent);
-      teacher.students[idx] = updatedStudent;
+      // 바뀐 항목만 보낸다. 문서 전체를 덮어쓰면 stats와 authUid가 날아가고,
+      // authUid를 잃으면 재발급 때 이전 코드를 정리하지 못해 옛 코드가 계속 살아 있다
+      const changes = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
+      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, changes);
+      teacher.students[idx] = { ...student, ...changes };
       _adminProgressCache = null;
       root.innerHTML = '';
       resolve(true);
@@ -3734,6 +3965,7 @@ function renderStudentSelect() {
   const enterStudent = async (studentDoc, name) => {
     state.currentStudent = name;
     state.currentStudentDoc = studentDoc;
+    state.classmates = state.currentTeacher ? (state.currentTeacher.students || []) : [];
     await loadStudentStats(studentDoc, name);
     state.view = 'student';
     render();
@@ -3803,11 +4035,11 @@ function renderStudent() {
   }
   root.appendChild(panel);
 
-  // 우리 반 점수판 (리더보드) 기능 구현
-  const myTeacher = masterState.teachers.find(t => (t.students || []).some(s => s.name === state.currentStudent));
-  if (myTeacher) {
-    const classmates = myTeacher.students || [];
-
+  // 우리 반 점수판 (리더보드)
+  // 명단은 교사 세션이든 원격 접속이든 state.classmates 하나로 통일한다.
+  // 원격 학생이 명단을 못 읽으면 이 목록은 비고, 리더보드만 빠진다
+  const classmates = state.classmates || [];
+  if (classmates.length > 0) {
     // 학습 기록은 로그인 시 Firestore에서 학생 문서와 함께 읽어둔 것을 쓴다
     const classmatesStats = classmates.map(s => ({
       firestoreId: s.firestoreId,
@@ -3824,7 +4056,8 @@ function renderStudent() {
     
     const leaderTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:12px' });
     leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:#f59e0b;' }));
-    leaderTitle.appendChild(document.createTextNode(`🏆 우리 반 리더보드 (${myTeacher.name} 선생님 반)`));
+    // 원격 학생은 교사 문서를 읽을 수 없어 선생님 이름을 표시하지 않는다
+    leaderTitle.appendChild(document.createTextNode('🏆 우리 반 리더보드'));
     leaderPanel.appendChild(leaderTitle);
     
     const table = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
@@ -4812,6 +5045,10 @@ async function fbRegister(email, password) {
 async function fbSignOut() {
   state.currentUser = null;
   state.currentTeacher = null;
+  state.currentStudent = null;
+  state.currentStudentDoc = null;
+  state.classmates = [];
+  state.role = null;
   state.students = [];
   masterState.teachers = [];
   state.view = 'login';
@@ -4821,6 +5058,81 @@ async function fbSignOut() {
 
 async function fbResetPassword(email) {
   return auth.sendPasswordResetEmail(email);
+}
+
+/* ===== 학생 원격 접속 =====
+   학생에게 이메일을 요구하지 않기 위해 코드를 합성 이메일로 바꿔 인증한다.
+   이 주소는 실제 메일함이 아니라 Firebase Auth의 식별자로만 쓰인다. */
+
+const STUDENT_EMAIL_DOMAIN = '@student.korean-learning.app';
+// 사람이 잘못 읽는 글자(0/O, 1/I/L)는 뺀다
+const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+const CODE_DIGITS = '23456789';
+
+function studentCodeToEmail(code) {
+  return 's-' + String(code).toLowerCase().replace(/[^a-z0-9]/g, '') + STUDENT_EMAIL_DOMAIN;
+}
+
+function generateStudentCode() {
+  const pick = (set, n) => Array.from({ length: n }, () => set[Math.floor(Math.random() * set.length)]).join('');
+  return pick(CODE_LETTERS, 4) + '-' + pick(CODE_DIGITS, 4);
+}
+
+// Firebase 최소 비밀번호 길이가 6자라 PIN도 6자리여야 한다
+function generateStudentPin() {
+  return Array.from({ length: 6 }, () => CODE_DIGITS[Math.floor(Math.random() * CODE_DIGITS.length)]).join('');
+}
+
+async function fbStudentSignIn(code, pin) {
+  return auth.signInWithEmailAndPassword(studentCodeToEmail(code), pin);
+}
+
+// 보조 앱 인스턴스로 계정을 만든다. 기본 인스턴스를 쓰면 새 계정으로
+// 로그인이 바뀌어 교사가 자기 세션에서 튕겨 나간다
+async function fbCreateStudentAuth(code, pin) {
+  const name = 'student-provisioning';
+  const app = firebase.apps.find(a => a.name === name) || firebase.initializeApp(firebaseConfig, name);
+  try {
+    const cred = await app.auth().createUserWithEmailAndPassword(studentCodeToEmail(code), pin);
+    const uid = cred.user.uid;
+    await app.auth().signOut();
+    return uid;
+  } finally {
+    await app.delete().catch(() => {});
+  }
+}
+
+// 규칙이 authUid → teacherId를 찾는 경로. 규칙 내부 get()은 읽기 권한을 타지 않는다
+async function fbSaveStudentIndex(authUid, data) {
+  return db.collection('studentIndex').doc(authUid).set(data, { merge: true });
+}
+
+async function fbDeleteStudentIndex(authUid) {
+  return db.collection('studentIndex').doc(authUid).delete();
+}
+
+async function fbGetStudentIndex(authUid) {
+  const doc = await db.collection('studentIndex').doc(authUid).get();
+  return doc.exists ? doc.data() : null;
+}
+
+// 로그인한 계정이 학생인지 확인한다. 교사면 빈 결과가 나온다
+async function fbFindStudentByAuthUid(authUid) {
+  const snap = await db.collection('students').where('authUid', '==', authUid).limit(1).get();
+  return snap.empty ? null : { firestoreId: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+/* ===== CURRICULA (단원) =====
+   교사 문서에는 연락처·주소가 들어 있어 학생에게 열 수 없다.
+   학생이 읽어야 하는 단원만 별도 문서로 떼어낸다. */
+
+async function fbGetCurriculum(teacherId) {
+  const doc = await db.collection('curricula').doc(teacherId).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function fbSaveCurriculum(teacherId, data) {
+  return db.collection('curricula').doc(teacherId).set(data, { merge: true });
 }
 
 /* ===== TEACHERS ===== */
@@ -4880,8 +5192,42 @@ async function fbDeleteStudent(firestoreId) {
 
 /* ===== 로그인 후 상태 로드 ===== */
 
+// 원격 접속한 학생의 세션을 연다. 교사 문서는 건드리지 않는다
+async function onStudentLogin(studentDoc) {
+  state.role = 'student';
+  state.currentUser = { uid: studentDoc.authUid, name: studentDoc.name };
+  state.currentTeacher = null;
+  state.students = [];
+  masterState.teachers = [];
+  state.currentStudent = studentDoc.name;
+  state.currentStudentDoc = studentDoc;
+  state.stats = { ...defaultStats(), ...(studentDoc.stats || {}) };
+  // 학생의 언어 선택은 교사 설정과 별개라 이 기기에만 둔다
+  state.language = localStorage.getItem('student_language') || 'en';
+
+  try {
+    const curriculum = await fbGetCurriculum(studentDoc.teacherId);
+    state.units = (curriculum && Array.isArray(curriculum.units)) ? curriculum.units : [];
+  } catch (e) {
+    console.error('Curriculum load failed:', e);
+    state.units = [];
+    toast('단원을 불러오지 못했습니다. 선생님께 문의하세요.', 'danger');
+  }
+
+  // 리더보드용 같은 반 명단. 규칙이 막으면 리더보드만 빠지고 학습은 계속된다
+  try {
+    state.classmates = await fbGetStudents(studentDoc.teacherId);
+  } catch (e) {
+    console.warn('Classmates load failed:', e);
+    state.classmates = [];
+  }
+
+  state.view = 'student';
+}
+
 async function onAuthLogin(fbUser) {
   try {
+    state.role = 'teacher';
     let teacher = await fbGetTeacher(fbUser.uid);
 
     // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
@@ -4953,8 +5299,17 @@ async function onAuthLogin(fbUser) {
       render();
 
       if (fbUser) {
-        // Firebase 로그인 상태: Firestore에서 교사 데이터 로드
-        await onAuthLogin(fbUser);
+        // 학생인지 먼저 판정한다. 이 순서가 뒤집히면 onAuthLogin이
+        // 학생 계정에 교사 문서를 만들어 학생을 교사로 승격시킨다
+        let student = null;
+        try {
+          student = await fbFindStudentByAuthUid(fbUser.uid);
+        } catch (e) {
+          console.warn('Student lookup failed:', e);
+        }
+
+        if (student) await onStudentLogin(student);
+        else await onAuthLogin(fbUser);
       } else {
         // 미인증 상태는 예외 없이 로그인 화면으로 보낸다.
         // 이전에는 Firestore의 첫 교사로 자동 진입하는 "테스트 모드"가 있었으나,
@@ -4963,6 +5318,8 @@ async function onAuthLogin(fbUser) {
         state.currentTeacher = null;
         state.currentStudent = null;
         state.currentStudentDoc = null;
+        state.classmates = [];
+        state.role = null;
         state.students = [];
         state.units = [];
         masterState.teachers = [];
