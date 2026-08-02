@@ -8,7 +8,8 @@ let state = {
   units: [],
   currentUnitId: null,
   currentActivity: null,
-  currentStudent: null,
+  currentStudent: null,      // 화면에 표시할 학생 이름
+  currentStudentDoc: null,   // 학습 기록을 저장할 Firestore 학생 문서 (게스트는 null)
   currentTeacher: null,
   currentUser: null,
   adminTeacherId: null,
@@ -101,6 +102,7 @@ function goHome() {
     state.stats.streak = 0;
     persistStudent(true);
     state.currentStudent = null;
+    state.currentStudentDoc = null;
     state.stats = defaultStats();
   }
   state.currentTeacher = null;

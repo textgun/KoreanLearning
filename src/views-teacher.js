@@ -112,14 +112,13 @@ function renderSignupPage() {
       const cred = await fbRegister(email, pw);
       const uid  = cred.user.uid;
 
-      // 첫 번째 가입자 = 관리자
-      const existing = await fbGetAllTeachers();
-      const isAdmin  = existing.length === 0;
-
       // Firestore 문서 먼저 저장 후 라우팅 (Race condition 방지)
+      // isAdmin은 항상 false. 관리자 승격은 Firebase 콘솔에서만 가능하다
+      // (이전에는 '첫 가입자 = 관리자'였으나, 신규 배포판을 먼저 발견한
+      //  아무나 관리자가 될 수 있어 제거했다)
       await fbSaveTeacher(uid, {
         name, phone, email, address: addrIn.value.trim(),
-        status: 'teaching', note: '', isAdmin,
+        status: 'teaching', note: '', isAdmin: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
@@ -130,7 +129,7 @@ function renderSignupPage() {
       render();
       await onAuthLogin(cred.user);
       render();
-      toast(`✅ 가입 완료${isAdmin ? ' (관리자 계정)' : ''}! 환영합니다.`, 'success');
+      toast('✅ 가입 완료! 환영합니다.', 'success');
     } catch (e) {
       window._signingUp = false;
       const msg = e.code === 'auth/email-already-in-use' ? '이미 사용 중인 이메일입니다' : '가입 실패: ' + e.message;
@@ -367,6 +366,7 @@ function renderTeacher() {
       state.language = 'en';
       state.students = [];
       state.currentStudent = null;
+      state.currentStudentDoc = null;
       state.view = 'home';
       state.currentUnitId = null;
       state.currentActivity = null;
@@ -851,17 +851,6 @@ async function saveWithAutoTranslate(unit) {
 const BADGE_NAMES = { perfect: '완벽주의자', combo10: '🔥 10연속', xp500: '⭐ XP 500', level5: '🏆 Lv.5 달성' };
 let _progressCache = null;
 
-async function loadAllStudentProgress() {
-  const cache = {};
-  await Promise.all(state.students.map(async name => {
-    try {
-      const r = await window.storage.get(studentKey(name));
-      cache[name] = (r && r.value) ? (JSON.parse(r.value).stats || defaultStats()) : defaultStats();
-    } catch (e) { cache[name] = defaultStats(); }
-  }));
-  return cache;
-}
-
 function getUnitActivities(unit) {
   const acts = [];
   if (unit.vocabulary.length > 0) {
@@ -906,7 +895,13 @@ function renderTeacherProgress() {
   title.appendChild(document.createTextNode('학생 진도 현황'));
   panel.appendChild(title);
 
-  if (state.students.length === 0) {
+  // 명단은 학생 문서에서 그때그때 뽑는다. state.students(이름 배열)는 학생을
+  // 새로 등록해도 갱신되지 않아 방금 추가한 학생이 빠진다
+  const names = state.currentTeacher
+    ? (state.currentTeacher.students || []).map(s => s.name)
+    : state.students;
+
+  if (names.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '교사 메뉴 → 학생 명단에서 이름을 추가해주세요.'));
     root.appendChild(panel);
     return root;
@@ -915,19 +910,19 @@ function renderTeacherProgress() {
   if (!_progressCache) {
     panel.appendChild(el('div', { style: 'text-align:center; padding:32px; color:#64748b; font-size:1.05rem' }, '📊 학생 데이터 불러오는 중...'));
     root.appendChild(panel);
-    loadAllStudentProgress().then(cache => { _progressCache = cache; render(); });
+    loadStudentsProgress(state.currentUser.uid).then(cache => { _progressCache = cache; render(); });
     return root;
   }
 
   const avgPct = Math.round(
-    state.students.reduce((sum, name) => sum + calcOverallProgress((_progressCache[name] || defaultStats()).bestScores), 0) / state.students.length
+    names.reduce((sum, name) => sum + calcOverallProgress((_progressCache[name] || defaultStats()).bestScores), 0) / names.length
   );
   
   const summary = el('div', { style: 'display:flex; align-items:center; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin-bottom:20px' });
   
   const stuCountSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   stuCountSpan.appendChild(el('i', { 'data-lucide': 'users', style: 'width:15px; height:15px; color:var(--primary);' }));
-  stuCountSpan.appendChild(document.createTextNode(`${state.students.length}명`));
+  stuCountSpan.appendChild(document.createTextNode(`${names.length}명`));
   summary.appendChild(stuCountSpan);
   
   const avgSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#059669' });
@@ -947,7 +942,7 @@ function renderTeacherProgress() {
   
   panel.appendChild(summary);
 
-  state.students.forEach(name => {
+  names.forEach(name => {
     const stats = _progressCache[name] || defaultStats();
     const overallPct = calcOverallProgress(stats.bestScores);
 
@@ -1191,7 +1186,7 @@ function renderAdminTeacherDetail() {
   if (!_adminProgressCache) {
     panel.appendChild(el('div', { style: 'text-align:center; padding:24px; color:#64748b' }, '📊 진도 불러오는 중...'));
     root.appendChild(panel);
-    loadStudentsProgress(teacher.students.map(s => s.name)).then(cache => { _adminProgressCache = cache; render(); });
+    loadStudentsProgress(teacher.id).then(cache => { _adminProgressCache = cache; render(); });
     return root;
   }
 

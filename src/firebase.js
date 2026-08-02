@@ -96,31 +96,32 @@ async function fbDeleteStudent(firestoreId) {
 
 async function onAuthLogin(fbUser) {
   try {
-    let [teacher, allTeachers] = await Promise.all([
-      fbGetTeacher(fbUser.uid),
-      fbGetAllTeachers()
-    ]);
+    let teacher = await fbGetTeacher(fbUser.uid);
 
     // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
     // auth.signOut()을 호출하면 onAuthStateChanged 중복 실행 버그 발생 → 제거
+    // 관리자 권한은 절대 클라이언트에서 부여하지 않는다 (Firebase 콘솔에서만 설정)
     if (!teacher) {
-      const isAdmin = allTeachers.length === 0;
       await fbSaveTeacher(fbUser.uid, {
         name: fbUser.email.split('@')[0],
         email: fbUser.email,
         phone: '',
         status: 'teaching',
         note: '',
-        isAdmin,
+        isAdmin: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       teacher = await fbGetTeacher(fbUser.uid);
-      allTeachers = await fbGetAllTeachers();
     }
 
     state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
 
+    // 단원은 교사 계정에 붙어 있으므로 로그인이 끝난 뒤에 읽는다
+    await loadTeacherData(teacher);
+
     if (teacher.isAdmin) {
+      // 교사 전체 조회는 관리자만 수행한다 (보안 규칙에서도 관리자만 허용)
+      const allTeachers = await fbGetAllTeachers();
       const teacherIds = allTeachers.map(t => t.id);
       const allStudents = await fbGetAllStudents(teacherIds);
       masterState.teachers = allTeachers.map(t => ({

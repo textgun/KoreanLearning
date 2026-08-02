@@ -39,21 +39,25 @@ function renderStudentSelect() {
   
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하세요. 학습 기록은 개인별로 저장됩니다.'));
 
-  const enterStudent = async (name) => {
+  // 학습 기록은 이름이 아니라 Firestore 문서 id로 식별한다.
+  // 동명이인이 있거나 교사가 이름을 고쳐도 기록이 끊기지 않는다
+  const enterStudent = async (studentDoc, name) => {
     state.currentStudent = name;
-    await loadStudentStats(name);
+    state.currentStudentDoc = studentDoc;
+    await loadStudentStats(studentDoc, name);
     state.view = 'student';
     render();
   };
 
-  if (state.students.length === 0) {
+  const roster = state.currentTeacher ? (state.currentTeacher.students || []) : [];
+  if (roster.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '교사 모드 → 학생 명단에서 이름을 추가해주세요.'));
   } else {
     const grid = el('div', { class: 'mode-grid' });
-    state.students.forEach(name => {
-      const card = el('div', { class: 'mode-card', onClick: () => enterStudent(name) });
+    roster.forEach(s => {
+      const card = el('div', { class: 'mode-card', onClick: () => enterStudent(s, s.name) });
       card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
-      card.appendChild(el('h3', {}, name));
+      card.appendChild(el('h3', {}, s.name));
       grid.appendChild(card);
     });
     panel.appendChild(grid);
@@ -62,7 +66,7 @@ function renderStudentSelect() {
   const guestBtn = el('button', {
     class: 'btn btn-ghost btn-block',
     style: 'margin-top:16px; display:flex; align-items:center; justify-content:center; gap:6px',
-    onClick: () => enterStudent('게스트')
+    onClick: () => enterStudent(null, '게스트')
   });
   guestBtn.appendChild(el('i', { 'data-lucide': 'user', style: 'width:16px; height:16px;' }));
   guestBtn.appendChild(document.createTextNode('게스트로 시작'));
@@ -104,17 +108,16 @@ function renderStudent() {
   const myTeacher = masterState.teachers.find(t => (t.students || []).some(s => s.name === state.currentStudent));
   if (myTeacher) {
     const classmates = myTeacher.students || [];
-    
-    // 같은 반 학생들의 스탯 동기 로드
-    const classmatesStats = classmates.map(s => {
-      const raw = localStorage.getItem('korean_student_' + encodeURIComponent(s.name) + '_v1');
-      let stats = { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} };
-      if (raw) {
-        try { stats = JSON.parse(raw).stats || stats; } catch(e) {}
-      }
-      return { name: s.name, nationality: s.nationality, age: s.age, stats };
-    });
-    
+
+    // 학습 기록은 로그인 시 Firestore에서 학생 문서와 함께 읽어둔 것을 쓴다
+    const classmatesStats = classmates.map(s => ({
+      firestoreId: s.firestoreId,
+      name: s.name,
+      nationality: s.nationality,
+      age: s.age,
+      stats: { ...defaultStats(), ...(s.stats || {}) }
+    }));
+
     // XP 점수 내림차순 정렬
     classmatesStats.sort((a, b) => (b.stats.xp || 0) - (a.stats.xp || 0));
 
@@ -128,7 +131,9 @@ function renderStudent() {
     const table = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
     
     classmatesStats.forEach((c, idx) => {
-      const isMe = c.name === state.currentStudent;
+      const isMe = state.currentStudentDoc
+        ? c.firestoreId === state.currentStudentDoc.firestoreId
+        : c.name === state.currentStudent;
       const rank = idx + 1;
       
       const row = el('div', { style: `display:grid; grid-template-columns: 40px 1fr 68px 80px 60px; gap:8px; align-items:center; border:1px solid ${isMe ? 'var(--primary)' : 'rgba(226, 232, 240, 0.8)'}; border-radius:12px; padding:12px 14px; background:${isMe ? 'rgba(79, 70, 229, 0.05)' : 'rgba(255,255,255,0.5)'};` });

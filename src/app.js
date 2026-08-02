@@ -3,8 +3,6 @@
    ========================================================= */
 (async function init() {
   try {
-    await loadAll(); // localStorage에서 단원 데이터 로드
-
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
     // _signingUp 플래그: 회원가입 중 중복 실행 방지
     auth.onAuthStateChanged(async (fbUser) => {
@@ -17,31 +15,17 @@
         // Firebase 로그인 상태: Firestore에서 교사 데이터 로드
         await onAuthLogin(fbUser);
       } else {
-        // 비로그인 상태: Firestore에 교사가 있으면 첫 교사로 자동 진입 (테스트 모드)
-        try {
-          const teachers = await fbGetAllTeachers();
-          if (teachers.length === 0) {
-            state.view = 'signup';
-          } else {
-            const first = teachers.find(t => t.isAdmin) || teachers[0];
-            state.currentUser = { uid: first.id, email: first.email || '', ...first };
-            if (first.isAdmin) {
-              const allStudents = await fbGetAllStudents(teachers.map(t => t.id));
-              masterState.teachers = teachers.map(t => ({
-                ...t, students: allStudents.filter(s => s.teacherId === t.id)
-              }));
-            } else {
-              const students = await fbGetStudents(first.id);
-              state.currentTeacher = { ...first, students };
-              state.students = students.map(s => s.name);
-              masterState.teachers = [state.currentTeacher];
-            }
-            state.view = 'home';
-          }
-        } catch (e) {
-          console.error('Auto-login error:', e);
-          state.view = 'signup';
-        }
+        // 미인증 상태는 예외 없이 로그인 화면으로 보낸다.
+        // 이전에는 Firestore의 첫 교사로 자동 진입하는 "테스트 모드"가 있었으나,
+        // 주소만 알면 누구나 관리자 화면에 들어갈 수 있어 제거했다.
+        state.currentUser = null;
+        state.currentTeacher = null;
+        state.currentStudent = null;
+        state.currentStudentDoc = null;
+        state.students = [];
+        state.units = [];
+        masterState.teachers = [];
+        state.view = 'login';
       }
 
       render();
