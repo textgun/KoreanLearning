@@ -30,12 +30,12 @@ async function _withRetry(fn, attempts = 3) {
 }
 
 async function _doSaveTeacher() {
-  // 단원은 교사 계정에 속한다. 로그인 전에는 저장할 곳이 없다
+  // 단원은 교사 계정에 속한다. 로그인 전이거나 학생 세션이면 저장할 곳이 없다
   const uid = state.currentUser && state.currentUser.uid;
-  if (!uid || _savingTeacher) return;
+  if (!uid || state.role !== 'teacher' || _savingTeacher) return;
   _savingTeacher = true;
   try {
-    await _withRetry(() => fbSaveTeacher(uid, { units: state.units, language: state.language }), 3);
+    await _withRetry(() => fbSaveCurriculum(uid, { units: state.units, language: state.language }), 3);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
     return true;
   } catch (e) {
@@ -99,17 +99,29 @@ async function _readLocalUnits() {
   return null;
 }
 
-// 로그인한 교사의 단원과 설정을 Firestore에서 읽는다.
-// Firestore에 아직 없으면 이 기기의 옛 데이터를 1회 올린다.
-// 플래그를 두지 않고 "필드가 있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
+// 로그인한 교사의 단원과 설정을 읽는다. 단원은 curricula/{teacherId}에 있다.
+// 교사 문서에는 연락처·주소가 함께 들어 있어 학생에게 열 수 없기 때문에 분리했다.
+// 플래그를 두지 않고 "있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
 async function loadTeacherData(teacher) {
-  state.language = teacher.language || 'en';
+  const uid = teacher.id;
 
-  if (Array.isArray(teacher.units)) {
-    state.units = teacher.units.length > 0 ? teacher.units : [SAMPLE_UNIT];
+  const curriculum = await fbGetCurriculum(uid);
+  if (curriculum && Array.isArray(curriculum.units)) {
+    state.units = curriculum.units.length > 0 ? curriculum.units : [SAMPLE_UNIT];
+    state.language = curriculum.language || 'en';
     return;
   }
 
+  // 1순위 이전 대상. 교사 문서 안에 남아 있는 단원
+  if (Array.isArray(teacher.units)) {
+    state.units = teacher.units.length > 0 ? teacher.units : [SAMPLE_UNIT];
+    state.language = teacher.language || 'en';
+    if (await _doSaveTeacher()) await _stripUnitsFromTeacherDoc(uid);
+    return;
+  }
+
+  // 2순위. 이 기기에만 남아 있는 옛 데이터
+  state.language = teacher.language || 'en';
   const legacy = await _readLocalUnits();
   if (!legacy) { state.units = [SAMPLE_UNIT]; return; }
 
@@ -122,6 +134,15 @@ async function loadTeacherData(teacher) {
     await _archiveLocalUnits();
     toast(`이 기기에 있던 단원 ${legacy.units.length}개를 계정으로 옮겼습니다`, 'success');
   }
+}
+
+// curricula로 옮긴 뒤 교사 문서의 단원 필드를 지운다.
+// 남겨두면 다음 마이그레이션 판단이 헷갈리고, 문서만 무겁게 만든다
+async function _stripUnitsFromTeacherDoc(uid) {
+  try {
+    const del = firebase.firestore.FieldValue.delete();
+    await fbSaveTeacher(uid, { units: del, language: del });
+  } catch (e) { console.warn('Teacher doc cleanup failed:', e); }
 }
 
 // 계정으로 옮긴 로컬 단원을 백업 키로 이동시켜 다시 소비되지 않게 한다
