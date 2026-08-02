@@ -19,6 +19,9 @@ function renderLoadingPage() {
 }
 
 /* ---------- 로그인 ---------- */
+// 로그인 화면에서 선택한 탭. 학생은 코드+PIN, 교사는 이메일+비밀번호
+let _loginTab = 'teacher';
+
 function renderLoginPage() {
   const root = el('div', { style: 'max-width:420px; margin:60px auto' });
   const panel = el('div', { class: 'panel' });
@@ -27,7 +30,27 @@ function renderLoginPage() {
   ttl.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:24px; height:24px; color:var(--primary)' }));
   ttl.appendChild(document.createTextNode('로그인'));
   panel.appendChild(ttl);
-  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:24px' }, '한국어 학습 도구'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:18px' }, '한국어 학습 도구'));
+
+  // 교사 / 학생 탭
+  const tabs = el('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:20px' });
+  [['teacher', '선생님', 'book-open'], ['student', '학생', 'graduation-cap']].forEach(([code, label, icon]) => {
+    const active = _loginTab === code;
+    const tab = el('button', {
+      class: 'btn btn-sm',
+      style: `padding:11px 4px; font-weight:700; background:${active ? 'var(--primary)' : '#f1f5f9'}; color:${active ? '#fff' : '#475569'}`,
+      onClick: () => { _loginTab = code; render(); }
+    });
+    tab.appendChild(el('i', { 'data-lucide': icon, style: `margin-right:5px; width:15px; height:15px; vertical-align:middle; color:${active ? '#fff' : '#64748b'};` }));
+    tab.appendChild(document.createTextNode(label));
+    tabs.appendChild(tab);
+  });
+  panel.appendChild(tabs);
+
+  if (_loginTab === 'student') {
+    root.appendChild(renderStudentLoginForm(panel));
+    return root;
+  }
 
   const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1rem; font-family:inherit; background:var(--surface); box-sizing:border-box;';
   const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: inputStyle + 'margin-bottom:12px' });
@@ -64,6 +87,47 @@ function renderLoginPage() {
   pwIn.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
   root.appendChild(panel);
   return root;
+}
+
+// 학생 로그인 양식. 선생님이 알려준 코드와 PIN만 입력한다
+function renderStudentLoginForm(panel) {
+  const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1.05rem; font-family:inherit; background:var(--surface); box-sizing:border-box; letter-spacing:0.06em;';
+
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '학생 코드 (Student Code)'));
+  const codeIn = el('input', { type: 'text', placeholder: 'ABCD-2345', autocomplete: 'off', autocapitalize: 'characters', style: inputStyle + 'margin-bottom:12px; text-transform:uppercase' });
+
+  panel.appendChild(codeIn);
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, 'PIN (6자리)'));
+  const pinIn = el('input', { type: 'password', inputmode: 'numeric', placeholder: '••••••', autocomplete: 'off', style: inputStyle + 'margin-bottom:16px' });
+  panel.appendChild(pinIn);
+
+  const btn = el('button', { class: 'btn btn-primary btn-block btn-lg', onClick: async () => {
+    const code = codeIn.value.trim();
+    const pin = pinIn.value.trim();
+    if (!code || !pin) { toast('코드와 PIN을 입력하세요', 'danger'); return; }
+    btn.disabled = true;
+    btn.textContent = '접속 중...';
+    try {
+      await fbStudentSignIn(code, pin);
+      // onAuthStateChanged가 학생 세션을 연다
+    } catch (e) {
+      const wrong = ['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-email'];
+      toast(wrong.includes(e.code) ? '코드 또는 PIN이 맞지 않습니다' : '접속 실패: ' + e.message, 'danger');
+      btn.disabled = false;
+      btn.textContent = '시작하기';
+    }
+  }}, '시작하기');
+  panel.appendChild(btn);
+
+  panel.appendChild(el('p', { class: 'text-muted', style: 'font-size:0.85rem; margin-top:14px; line-height:1.6; text-align:center; white-space:pre-line' },
+    '코드와 PIN은 선생님께 받으세요.\n잊어버렸다면 선생님이 다시 발급해 줍니다.'));
+
+  pinIn.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+  setTimeout(() => codeIn.focus(), 50);
+
+  const wrap = el('div');
+  wrap.appendChild(panel);
+  return wrap;
 }
 
 /* ---------- 회원가입 ---------- */
@@ -335,6 +399,18 @@ function renderTeacher() {
       if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
       
       if (!isTraining) {
+        // 원격 접속 발급 여부를 한눈에 보여준다
+        const hasRemote = !!s.authUid;
+        const remoteBtn = el('button', {
+          class: 'btn btn-ghost btn-sm',
+          style: `padding:2px 8px; min-height:auto; display:inline-flex; align-items:center; gap:3px; margin-right:4px; font-size:0.78rem; font-weight:700; color:${hasRemote ? '#059669' : '#64748b'}`,
+          title: hasRemote ? '원격 접속 재발급' : '원격 접속 발급',
+          onClick: () => showRemoteAccessModal(s)
+        });
+        remoteBtn.appendChild(el('i', { 'data-lucide': hasRemote ? 'smartphone' : 'smartphone-nfc', style: `width:14px; height:14px; color:${hasRemote ? '#059669' : '#94a3b8'};` }));
+        remoteBtn.appendChild(document.createTextNode(hasRemote ? '접속됨' : '원격'));
+        row.appendChild(remoteBtn);
+
         const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#3b82f6; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
         editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
         row.appendChild(editStuBtn);
@@ -1284,6 +1360,122 @@ function renderAdminTeacherDetail() {
   return root;
 }
 
+/* =========================================================
+   학생 원격 접속 발급
+   ========================================================= */
+
+// 계정 생성 → 규칙용 색인 → 학생 문서 연결 순서로 진행한다.
+// 중간에 실패해도 학생 문서가 옛 계정을 가리킨 채 남아 이전 접속이 계속 동작한다
+async function issueRemoteAccess(student) {
+  const teacherId = state.currentTeacher.id;
+  const previousUid = student.authUid || null;
+  const pin = generateStudentPin();
+
+  // 코드가 아주 드물게 겹친다. 겹치면 계정 생성이 막히므로 다시 뽑는다
+  let code, authUid;
+  for (let i = 0; ; i++) {
+    code = generateStudentCode();
+    try {
+      authUid = await fbCreateStudentAuth(code, pin);
+      break;
+    } catch (e) {
+      if (e.code !== 'auth/email-already-in-use' || i >= 4) throw e;
+    }
+  }
+  await fbSaveStudentIndex(authUid, { studentId: student.firestoreId, teacherId, code });
+  await fbUpdateStudent(student.firestoreId, { authUid });
+
+  // 이전 색인을 지우면 옛 코드로는 아무것도 읽지 못한다.
+  // 인증 계정 자체는 서버 없이 삭제할 수 없어 그대로 남지만, 연결이 끊겨 무력하다
+  if (previousUid && previousUid !== authUid) {
+    await fbDeleteStudentIndex(previousUid).catch(e => console.warn('Old index cleanup failed:', e));
+  }
+  student.authUid = authUid;
+  return { code, pin };
+}
+
+function showRemoteAccessModal(student) {
+  const root = $('#modal-root');
+  const close = () => { root.innerHTML = ''; render(); };
+
+  function draw(issued, existingCode) {
+    root.innerHTML = '';
+    const backdrop = el('div', { class: 'modal-backdrop', onClick: (e) => { if (e.target === backdrop) close(); } });
+    const modal = el('div', { class: 'modal', style: 'max-width:440px' });
+
+    const h = el('h3', { style: 'margin-bottom:10px; display:flex; align-items:center; gap:7px' });
+    h.appendChild(el('i', { 'data-lucide': 'smartphone', style: 'width:19px; height:19px; color:var(--primary);' }));
+    h.appendChild(document.createTextNode(`${student.name} — 원격 접속`));
+    modal.appendChild(h);
+
+    if (issued) {
+      modal.appendChild(el('p', { style: 'font-size:0.88rem; margin-bottom:14px; line-height:1.6; color:#92400e; background:#fef3c7; border-radius:8px; padding:10px 12px' },
+        'PIN은 지금만 보입니다. 창을 닫으면 다시 볼 수 없고, 잊으면 재발급해야 합니다.'));
+
+      const box = el('div', { style: 'background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:18px; text-align:center; margin-bottom:14px' });
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, '학생 코드'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.09em; color:#065f46; margin-bottom:14px' }, issued.code));
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, 'PIN'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.2em; color:#065f46' }, issued.pin));
+      modal.appendChild(box);
+
+      const copyBtn = el('button', { class: 'btn btn-ghost btn-block', style: 'margin-bottom:8px', onClick: async () => {
+        const text = `한국어 학습 접속\n주소: ${location.origin}${location.pathname}\n학생 코드: ${issued.code}\nPIN: ${issued.pin}`;
+        try { await navigator.clipboard.writeText(text); toast('복사했습니다', 'success'); }
+        catch (e) { toast('복사할 수 없습니다. 직접 적어주세요', 'danger'); }
+      }}, '📋 접속 안내 복사');
+      modal.appendChild(copyBtn);
+      modal.appendChild(el('button', { class: 'btn btn-primary btn-block', onClick: close }, '확인했습니다'));
+      backdrop.appendChild(modal);
+      root.appendChild(backdrop);
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    const desc = el('p', { class: 'text-muted', style: 'font-size:0.88rem; line-height:1.65; margin-bottom:14px; white-space:pre-line' });
+    desc.textContent = student.authUid
+      ? '이미 발급된 학생입니다.\nPIN은 다시 볼 수 없습니다. 학생이 잊었다면 재발급하세요.\n재발급하면 이전 코드와 PIN은 즉시 쓸 수 없게 됩니다.'
+      : '학생이 자기 기기에서 접속할 수 있게 코드와 PIN을 만듭니다.\n이메일은 필요하지 않습니다.';
+    modal.appendChild(desc);
+
+    if (existingCode) {
+      const cur = el('div', { style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:center' });
+      cur.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; font-weight:700; margin-bottom:3px' }, '현재 학생 코드'));
+      cur.appendChild(el('div', { style: 'font-size:1.2rem; font-weight:800; letter-spacing:0.08em; color:#334155' }, existingCode));
+      modal.appendChild(cur);
+    }
+
+    const btns = el('div', { style: 'display:flex; gap:8px' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: close }, '닫기'));
+    const goBtn = el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+      goBtn.disabled = true;
+      goBtn.textContent = '발급 중...';
+      try {
+        draw(await issueRemoteAccess(student), null);
+      } catch (e) {
+        console.error('Remote access issue failed:', e);
+        toast('발급 실패: ' + (e.message || e), 'danger');
+        goBtn.disabled = false;
+        goBtn.textContent = student.authUid ? '재발급' : '발급하기';
+      }
+    }}, student.authUid ? '재발급' : '발급하기');
+    btns.appendChild(goBtn);
+    modal.appendChild(btns);
+
+    backdrop.appendChild(modal);
+    root.appendChild(backdrop);
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  draw(null, null);
+  // 이미 발급된 학생이면 현재 코드를 찾아 보여준다 (PIN은 저장하지 않는다)
+  if (student.authUid) {
+    fbGetStudentIndex(student.authUid)
+      .then(idx => { if (idx && idx.code) draw(null, idx.code); })
+      .catch(e => console.warn('Index lookup failed:', e));
+  }
+}
+
 function showTeacherModal(existing = null) {
   return new Promise(resolve => {
     const root = $('#modal-root');
@@ -1416,9 +1608,11 @@ function showEditStudentModal(teacher, student, idx) {
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
       if (duplicate) { toast('이미 등록된 이름입니다', 'danger'); return; }
-      const updatedStudent = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null, teacherId: teacher.id, firestoreId: student.firestoreId };
-      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, updatedStudent);
-      teacher.students[idx] = updatedStudent;
+      // 바뀐 항목만 보낸다. 문서 전체를 덮어쓰면 stats와 authUid가 날아가고,
+      // authUid를 잃으면 재발급 때 이전 코드를 정리하지 못해 옛 코드가 계속 살아 있다
+      const changes = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
+      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, changes);
+      teacher.students[idx] = { ...student, ...changes };
       _adminProgressCache = null;
       root.innerHTML = '';
       resolve(true);
