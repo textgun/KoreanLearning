@@ -12,8 +12,17 @@
       render();
 
       if (fbUser) {
-        // Firebase 로그인 상태: Firestore에서 교사 데이터 로드
-        await onAuthLogin(fbUser);
+        // 학생인지 먼저 판정한다. 이 순서가 뒤집히면 onAuthLogin이
+        // 학생 계정에 교사 문서를 만들어 학생을 교사로 승격시킨다
+        let student = null;
+        try {
+          student = await fbFindStudentByAuthUid(fbUser.uid);
+        } catch (e) {
+          console.warn('Student lookup failed:', e);
+        }
+
+        if (student) await onStudentLogin(student);
+        else await onAuthLogin(fbUser);
       } else {
         // 미인증 상태는 예외 없이 로그인 화면으로 보낸다.
         // 이전에는 Firestore의 첫 교사로 자동 진입하는 "테스트 모드"가 있었으나,
@@ -22,6 +31,8 @@
         state.currentTeacher = null;
         state.currentStudent = null;
         state.currentStudentDoc = null;
+        state.classmates = [];
+        state.role = null;
         state.students = [];
         state.units = [];
         masterState.teachers = [];

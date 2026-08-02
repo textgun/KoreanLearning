@@ -8,8 +8,10 @@ let state = {
   units: [],
   currentUnitId: null,
   currentActivity: null,
+  role: null,                // 'teacher' | 'student' — 원격 접속 학생과 교사를 구분
   currentStudent: null,      // 화면에 표시할 학생 이름
   currentStudentDoc: null,   // 학습 기록을 저장할 Firestore 학생 문서 (게스트는 null)
+  classmates: [],            // 리더보드용 같은 반 명단
   currentTeacher: null,
   currentUser: null,
   adminTeacherId: null,
@@ -32,10 +34,11 @@ function render() {
   }
 
   // 학생이 학습 중일 때는 교사·관리자 화면으로 넘어갈 수 없다.
-  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다
+  // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다.
+  // 원격 접속 학생(role === 'student')도 같은 관문에 걸린다
   const staffViews = ['home', 'teacher', 'teacher-create', 'teacher-edit',
                       'teacher-progress', 'admin', 'admin-teacher', 'student-select'];
-  if (state.currentStudent && staffViews.includes(v)) {
+  if ((state.currentStudent || state.role === 'student') && staffViews.includes(v)) {
     state.view = 'student';
     v = 'student';
   }
@@ -101,9 +104,15 @@ function renderTopbar() {
       statsRow.appendChild(el('div', { class: 'stat-chip xp' }, `✨${state.stats.xp}`));
       if (state.stats.streak > 0) statsRow.appendChild(el('div', { class: 'stat-chip streak' }, `🔥 ${state.stats.streak}`));
     }
-    // 학생 학습 중에는 로그아웃 대신 '학생 모드 종료'만 둔다.
+    // 원격 접속 학생은 돌아갈 교사 화면이 없다. 로그아웃이 맞다
+    if (state.role === 'student') {
+      const outBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: fbSignOut, title: '로그아웃' });
+      outBtn.appendChild(el('i', { 'data-lucide': 'log-out', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
+      outBtn.appendChild(document.createTextNode('로그아웃'));
+      statsRow.appendChild(outBtn);
+    // 교사 세션 안의 학생은 로그아웃 대신 '종료'만 둔다.
     // 학생이 교사 계정을 로그아웃시키는 것을 막는다
-    if (inStudentMode) {
+    } else if (inStudentMode) {
       const exitBtn = el('button', { class: 'btn btn-ghost btn-sm', onClick: exitStudentMode, title: '학생 모드 종료' });
       exitBtn.appendChild(el('i', { 'data-lucide': 'door-open', style: 'margin-right:4px; width:15px; height:15px; vertical-align:middle;' }));
       exitBtn.appendChild(document.createTextNode('종료'));
@@ -248,7 +257,14 @@ function showLangModal() {
   LANGS.forEach(l => {
     const tile = el('div', {
       class: 'lang-tile' + (state.language === l.code ? ' active' : ''),
-      onClick: () => { state.language = l.code; persistAll(); root.innerHTML = ''; render(); }
+      onClick: () => {
+        state.language = l.code;
+        // 학생은 교사의 단원 설정을 바꿀 권한이 없다. 선택은 이 기기에만 남긴다
+        if (state.role === 'student') localStorage.setItem('student_language', l.code);
+        else persistAll();
+        root.innerHTML = '';
+        render();
+      }
     });
     tile.innerHTML = `<span class="flag">${l.flag}</span><div class="name">${l.name}</div>`;
     grid.appendChild(tile);

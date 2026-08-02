@@ -44,6 +44,7 @@ function renderStudentSelect() {
   const enterStudent = async (studentDoc, name) => {
     state.currentStudent = name;
     state.currentStudentDoc = studentDoc;
+    state.classmates = state.currentTeacher ? (state.currentTeacher.students || []) : [];
     await loadStudentStats(studentDoc, name);
     state.view = 'student';
     render();
@@ -113,11 +114,11 @@ function renderStudent() {
   }
   root.appendChild(panel);
 
-  // 우리 반 점수판 (리더보드) 기능 구현
-  const myTeacher = masterState.teachers.find(t => (t.students || []).some(s => s.name === state.currentStudent));
-  if (myTeacher) {
-    const classmates = myTeacher.students || [];
-
+  // 우리 반 점수판 (리더보드)
+  // 명단은 교사 세션이든 원격 접속이든 state.classmates 하나로 통일한다.
+  // 원격 학생이 명단을 못 읽으면 이 목록은 비고, 리더보드만 빠진다
+  const classmates = state.classmates || [];
+  if (classmates.length > 0) {
     // 학습 기록은 로그인 시 Firestore에서 학생 문서와 함께 읽어둔 것을 쓴다
     const classmatesStats = classmates.map(s => ({
       firestoreId: s.firestoreId,
@@ -134,7 +135,8 @@ function renderStudent() {
     
     const leaderTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:12px' });
     leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:#f59e0b;' }));
-    leaderTitle.appendChild(document.createTextNode(`🏆 우리 반 리더보드 (${myTeacher.name} 선생님 반)`));
+    // 원격 학생은 교사 문서를 읽을 수 없어 선생님 이름을 표시하지 않는다
+    leaderTitle.appendChild(document.createTextNode('🏆 우리 반 리더보드'));
     leaderPanel.appendChild(leaderTitle);
     
     const table = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
