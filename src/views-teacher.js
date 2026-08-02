@@ -267,25 +267,24 @@ function renderTeacher() {
   if (state.units.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
-    const list = el('div', { class: 'unit-list' });
-    state.units.forEach(u => {
+    const makeUnitItem = (u) => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
       info.appendChild(el('h4', {}, u.title));
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
-      
+
       if (!isTraining) {
         const actions = el('div', { class: 'unit-actions' });
-        
+
         const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => editUnit(u.id) });
         editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
         editBtn.appendChild(document.createTextNode('편집'));
         actions.appendChild(editBtn);
-        
+
         const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
         delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
         actions.appendChild(delBtn);
-        
+
         item.append(info, actions);
       } else {
         const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:#f1f5f9; border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
@@ -293,9 +292,22 @@ function renderTeacher() {
         viewLabel.appendChild(document.createTextNode('조회 모드'));
         item.append(info, viewLabel);
       }
-      list.appendChild(item);
+      return item;
+    };
+
+    // 난이도별로 묶어 표시한다. 단원이 없는 난이도는 나오지 않는다
+    groupUnitsByLevel(state.units).forEach(g => {
+      const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 8px' });
+      head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:17px; height:17px; color:${g.level.color};` }));
+      head.appendChild(el('span', { style: `font-weight:800; font-size:1rem; color:${g.level.color}` }, g.level.name));
+      head.appendChild(el('span', { style: 'font-size:0.82rem; color:var(--muted); font-weight:600' }, `${g.units.length}개`));
+      head.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
+      panel.appendChild(head);
+
+      const list = el('div', { class: 'unit-list' });
+      g.units.forEach(u => list.appendChild(makeUnitItem(u)));
+      panel.appendChild(list);
     });
-    panel.appendChild(list);
   }
   root.appendChild(panel);
 
@@ -395,15 +407,37 @@ async function deleteUnit(id) {
   render();
 }
 
+// 새로 만드는 단원에 붙일 난이도. PDF 변환과 직접 입력이 함께 참조한다
+let _createLevel = DEFAULT_LEVEL;
+
 function renderTeacherCreate() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'teacher'; render(); }}, '← 뒤로'));
-  
+
   const title = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
   title.appendChild(el('i', { 'data-lucide': 'plus-circle', style: 'width:24px; height:24px; color:var(--primary);' }));
   title.appendChild(document.createTextNode('새 단원 만들기'));
   panel.appendChild(title);
+
+  // 난이도 선택. 아래 두 방식(PDF 변환·직접 입력) 모두에 적용된다
+  panel.appendChild(el('label', { style: 'display:block; font-size:0.9rem; font-weight:700; margin:14px 0 6px' }, '난이도'));
+  const levelRow = el('div', { style: 'display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:6px' });
+  LEVELS.forEach(lv => {
+    const active = _createLevel === lv.code;
+    const btn = el('button', {
+      class: 'btn btn-sm',
+      style: `padding:10px 4px; line-height:1.35; font-weight:700;
+              background:${active ? lv.color : '#f1f5f9'}; color:${active ? '#fff' : '#475569'};
+              border:1.5px solid ${active ? lv.color : 'transparent'}`,
+      onClick: () => { _createLevel = lv.code; render(); }
+    });
+    btn.appendChild(el('i', { 'data-lucide': lv.icon, style: `display:block; margin:0 auto 4px; width:17px; height:17px; color:${active ? '#fff' : lv.color};` }));
+    btn.appendChild(document.createTextNode(lv.name));
+    levelRow.appendChild(btn);
+  });
+  panel.appendChild(levelRow);
+  panel.appendChild(el('p', { class: 'text-muted', style: 'font-size:0.82rem; margin-bottom:14px' }, '만든 뒤 단원 편집 화면에서 언제든 바꿀 수 있습니다.'));
 
   const opts = el('div', { class: 'create-options' });
 
@@ -427,7 +461,7 @@ function renderTeacherCreate() {
 async function createBlankUnit() {
   const title = await showPrompt('새 단원 만들기', '예: 10단원 - 가족');
   if (!title) return;
-  state.units.push({ id: Date.now(), title, vocabulary: [], grammar: [], quizzes: [] });
+  state.units.push({ id: Date.now(), title, level: _createLevel, vocabulary: [], grammar: [], quizzes: [] });
   await persistAll(true);
   state.currentUnitId = state.units[state.units.length - 1].id;
   state.view = 'teacher-edit';
@@ -483,6 +517,7 @@ async function handlePDFUpload(e) {
     const newUnit = {
       id: Date.now(),
       title: parsed.title || '새 단원',
+      level: _createLevel,
       vocabulary: (parsed.vocab || []).map(v => ({
         word: v.w || v.word || v.korean || '',
         romanization: v.r || v.romanization || '',
@@ -536,6 +571,17 @@ function renderTeacherEdit() {
   titleInput.oninput = () => { unit.title = titleInput.value; };
   headPanel.appendChild(el('label', { style: 'margin-top:10px' }, '단원 제목'));
   headPanel.appendChild(titleInput);
+
+  // 난이도 변경. 바꾸면 단원 목록에서 해당 그룹으로 이동한다
+  headPanel.appendChild(el('label', { style: 'margin-top:12px' }, '난이도'));
+  const levelSel = el('select', { style: 'width:100%; max-width:220px' });
+  LEVELS.forEach(lv => {
+    const opt = el('option', { value: lv.code }, lv.name);
+    if ((unit.level || DEFAULT_LEVEL) === lv.code) opt.setAttribute('selected', '');
+    levelSel.appendChild(opt);
+  });
+  levelSel.onchange = () => { unit.level = levelSel.value; persistAll(); render(); };
+  headPanel.appendChild(levelSel);
   root.appendChild(headPanel);
 
   // Vocabulary

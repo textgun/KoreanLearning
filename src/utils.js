@@ -27,6 +27,17 @@ function toast(msg, type = '') {
   setTimeout(() => t.className = '', 2200);
 }
 function getLangInfo() { return LANGS.find(l => l.code === state.language) || LANGS[0]; }
+
+// 단원을 난이도 순서대로 묶는다. 단원이 없는 난이도는 결과에서 제외한다.
+// level이 없거나 아는 값이 아니면 기초로 본다.
+// 모르는 값을 그냥 두면 어느 그룹에도 안 들어가 단원이 화면에서 사라진다
+function groupUnitsByLevel(units) {
+  const codes = LEVELS.map(l => l.code);
+  const levelOf = u => (codes.includes(u.level) ? u.level : DEFAULT_LEVEL);
+  return LEVELS
+    .map(lv => ({ level: lv, units: units.filter(u => levelOf(u) === lv.code) }))
+    .filter(g => g.units.length > 0);
+}
 function getTranslation(obj, fallback = '') {
   if (!obj) return fallback;
   return obj[state.language] || obj.en || obj.ko || fallback;

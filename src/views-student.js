@@ -92,15 +92,24 @@ function renderStudent() {
   if (state.units.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
-    const grid = el('div', { class: 'unit-grid' });
-    state.units.forEach((u, i) => {
-      const tile = el('div', { class: 'unit-tile', onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
-      tile.appendChild(el('div', { class: 'num' }, String(i + 1)));
-      tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
-      tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
-      grid.appendChild(tile);
+    // 난이도별로 묶어 보여준다. 번호는 난이도 안에서 다시 1부터 센다
+    groupUnitsByLevel(state.units).forEach(g => {
+      const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 10px' });
+      head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:18px; height:18px; color:${g.level.color};` }));
+      head.appendChild(el('span', { style: `font-weight:800; font-size:1.05rem; color:${g.level.color}` }, g.level.name));
+      head.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
+      panel.appendChild(head);
+
+      const grid = el('div', { class: 'unit-grid' });
+      g.units.forEach((u, i) => {
+        const tile = el('div', { class: 'unit-tile', style: `border-top-color:${g.level.color}`, onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
+        tile.appendChild(el('div', { class: 'num', style: `color:${g.level.color}` }, String(i + 1)));
+        tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
+        tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
+        grid.appendChild(tile);
+      });
+      panel.appendChild(grid);
     });
-    panel.appendChild(grid);
   }
   root.appendChild(panel);
 
