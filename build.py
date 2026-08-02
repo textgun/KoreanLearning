@@ -52,7 +52,9 @@ def main():
     replacement = f"<script>\n{concatenated_js}\n</script>"
     
     # 정규식 치환 (점(.)이 줄바꿈 문자도 매칭하도록 re.DOTALL 사용)
-    output, count = re.subn(script_pattern, replacement, output, flags=re.DOTALL)
+    # 치환값을 람다로 넘긴다. 문자열로 넘기면 병합된 JS 안의 정규식 리터럴(\s, \d 등)을
+    # 파이썬이 치환 템플릿의 이스케이프로 해석해 "bad escape" 오류가 난다
+    output, count = re.subn(script_pattern, lambda m: replacement, output, flags=re.DOTALL)
     
     if count == 0:
         # 정규식 치환에 실패했을 경우를 대비한 대체 치환
@@ -67,8 +69,15 @@ def main():
     out_path = DIST / "index.html"
     out_path.write_text(output, encoding="utf-8")
 
+    # 루트 사본도 함께 갱신한다.
+    # 이 둘이 어긋나면 src/를 고쳐도 배포에 반영되지 않는 사고가 난다
+    root_copy = Path("korean_learning_app.html")
+    root_copy.write_text(output, encoding="utf-8")
+
     size_kb = out_path.stat().st_size / 1024
-    print(f"[OK] 빌드 완료: dist/index.html ({size_kb:.1f} KB)")
+    print(f"[OK] 빌드 완료 ({size_kb:.1f} KB)")
+    print(f"   dist/index.html")
+    print(f"   korean_learning_app.html (루트 사본 동기화됨)")
 
 if __name__ == "__main__":
     main()
