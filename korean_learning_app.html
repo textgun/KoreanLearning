@@ -1398,7 +1398,7 @@ label {
 </style>
 </head>
 <body>
-<script>window.BUILD_ID = '08-10 17:31 (5b1d327)';</script>
+<script>window.BUILD_ID = '08-10 17:42 (f57b1df)';</script>
 <div id="app"></div>
 <div id="toast"></div>
 <div id="modal-root"></div>
@@ -3710,8 +3710,22 @@ async function issueRemoteAccess(student) {
       if (e.code !== 'auth/email-already-in-use' || i >= 4) throw e;
     }
   }
-  await fbSaveStudentIndex(authUid, { studentId: student.firestoreId, teacherId, code });
-  await fbUpdateStudent(student.firestoreId, { authUid });
+  // 어느 단계에서 막혔는지 남긴다. 보안 규칙은 컬렉션마다 따로라
+  // students는 되는데 studentIndex만 막히는 경우가 실제로 나온다
+  try {
+    await fbSaveStudentIndex(authUid, { studentId: student.firestoreId, teacherId, code });
+  } catch (e) {
+    // 인증 계정은 이미 만들어졌고 서버 없이는 지울 수 없다.
+    // 이 코드는 아무 데도 연결되지 않은 채 남는다
+    e.step = 'studentIndex 색인 저장';
+    throw e;
+  }
+  try {
+    await fbUpdateStudent(student.firestoreId, { authUid });
+  } catch (e) {
+    e.step = 'students 문서에 authUid 연결';
+    throw e;
+  }
 
   // 이전 색인을 지우면 옛 코드로는 아무것도 읽지 못한다.
   // 인증 계정 자체는 서버 없이 삭제할 수 없어 그대로 남지만, 연결이 끊겨 무력하다
@@ -3895,7 +3909,8 @@ function confirmOverModal(title, message, keepLabel = '계속 작성', discardLa
 // "버튼을 눌러도 아무 일도 없다"로만 보인다
 function toastSaveError(what, err) {
   console.error(`[${what}] 실패:`, err);
-  toast(`${what} 실패. ` + firestoreErrorText(err), 'danger');
+  const step = err && err.step ? ` (${err.step} 단계)` : '';
+  toast(`${what} 실패${step}. ` + firestoreErrorText(err), 'danger');
 }
 
 function showAddStudentModal(teacher) {
