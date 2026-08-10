@@ -167,3 +167,13 @@
 - [x] 학생 추가·수정 모달에 교사 컨텍스트 가드
 - [x] `firestoreErrorText()` — permission-denied를 조치 가능한 문장으로
 - [x] jsdom 41개 항목 검증 (전체 통과)
+
+
+## 19. 원인 확정 — studentIndex 규칙 미게시 (2026-08-10)
+- [x] 빌드 식별자(`window.BUILD_ID`)를 화면 왼쪽 아래와 콘솔에 표시
+- [x] 학생 등록은 성공, 원격 발급만 `permission-denied` 확인
+- [x] 발급 실패 단계를 토스트에 표시 (studentIndex / students 구분)
+- [ ] **Firebase 콘솔에 `firestore.rules` 게시** (사용자 직접)
+- [ ] **고아 인증 계정 3개 삭제** (사용자 직접)
+      `s-jhyt7255` / `s-dgkq9482` / `s-qnna6454` @student.korean-learning.app
+- [ ] 게시 후 원격 발급 재시도 → 코드·PIN이 뜨는지 확인
