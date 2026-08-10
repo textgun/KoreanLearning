@@ -418,10 +418,18 @@ function renderTeacher() {
         const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
           const ok = await showConfirm('학생 삭제', `"${s.name}" 학생을 정말 삭제하시겠습니까?`, true);
           if (!ok) return;
-          if (s.firestoreId) await fbDeleteStudent(s.firestoreId);
+          try {
+            if (s.firestoreId) await fbDeleteStudent(s.firestoreId);
+          } catch (err) {
+            // 실패했는데 명단에서 먼저 빼면 지워진 것처럼 보이다가
+            // 새로고침하면 학생이 되살아난다
+            toastSaveError('학생 삭제', err);
+            return;
+          }
           state.currentTeacher.students.splice(idx, 1);
           state.students = state.currentTeacher.students.map(st => st.name);
           render();
+          toast(`${s.name} 학생을 삭제했습니다`, 'success');
         }});
         delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
         row.appendChild(delStuBtn);
@@ -1344,10 +1352,16 @@ function renderAdminTeacherDetail() {
     const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
       const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
       if (!ok) return;
-      if (student.firestoreId) await fbDeleteStudent(student.firestoreId);
+      try {
+        if (student.firestoreId) await fbDeleteStudent(student.firestoreId);
+      } catch (err) {
+        toastSaveError('학생 삭제', err);
+        return;
+      }
       teacher.students.splice(idx, 1);
       _adminProgressCache = null;
       render();
+      toast(`${student.name} 학생을 삭제했습니다`, 'success');
     }});
     delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
     row.appendChild(delStuBtn);
@@ -1400,7 +1414,21 @@ function showRemoteAccessModal(student) {
 
   function draw(issued, existingCode) {
     root.innerHTML = '';
-    const backdrop = el('div', { class: 'modal-backdrop', onClick: (e) => { if (e.target === backdrop) close(); } });
+    const backdrop = el('div', { class: 'modal-backdrop' });
+    // 발급 중에 창이 닫히면 코드는 만들어졌는데 아무도 그 값을 모르게 되고,
+    // PIN이 떠 있을 때 닫히면 영영 다시 볼 수 없다. 이 두 경우만 붙잡는다
+    let issuing = false;
+    let askingClose = false;
+    backdrop.onclick = async (e) => {
+      if (e.target !== backdrop || askingClose) return;
+      if (issuing) return;
+      if (!issued) { close(); return; }
+      askingClose = true;
+      const ok = await confirmOverModal('PIN 확인 종료',
+        'PIN은 창을 닫으면 다시 볼 수 없습니다. 학생에게 전달하셨나요?', '계속 보기', '닫기');
+      askingClose = false;
+      if (ok) close();
+    };
     const modal = el('div', { class: 'modal', style: 'max-width:440px' });
 
     const h = el('h3', { style: 'margin-bottom:10px; display:flex; align-items:center; gap:7px' });
@@ -1450,11 +1478,12 @@ function showRemoteAccessModal(student) {
     const goBtn = el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
       goBtn.disabled = true;
       goBtn.textContent = '발급 중...';
+      issuing = true;
       try {
         draw(await issueRemoteAccess(student), null);
       } catch (e) {
-        console.error('Remote access issue failed:', e);
-        toast('발급 실패: ' + (e.message || e), 'danger');
+        toastSaveError('원격 접속 발급', e);
+        issuing = false;
         goBtn.disabled = false;
         goBtn.textContent = student.authUid ? '재발급' : '발급하기';
       }
@@ -1531,7 +1560,7 @@ function showTeacherModal(existing = null) {
 
 // 입력 중인 모달 위에 겹쳐 띄우는 확인창.
 // showConfirm()은 #modal-root를 통째로 비워서 뒤에 있는 모달과 입력값까지 날린다
-function confirmOverModal(title, message) {
+function confirmOverModal(title, message, keepLabel = '계속 작성', discardLabel = '취소하기') {
   return new Promise(resolve => {
     const backdrop = el('div', { class: 'modal-backdrop', style: 'z-index:60' });
     const close = (v) => { backdrop.remove(); resolve(v); };
@@ -1540,12 +1569,21 @@ function confirmOverModal(title, message) {
     modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, title));
     modal.appendChild(el('div', { style: 'margin-bottom:18px; color:#475569; line-height:1.6' }, message));
     const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });
-    btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => close(false) }, '계속 작성'));
-    btns.appendChild(el('button', { class: 'btn btn-danger', onClick: () => close(true) }, '취소하기'));
+    btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => close(false) }, keepLabel));
+    btns.appendChild(el('button', { class: 'btn btn-danger', onClick: () => close(true) }, discardLabel));
     modal.appendChild(btns);
     backdrop.appendChild(modal);
     $('#modal-root').appendChild(backdrop);
   });
+}
+
+// 저장 실패를 화면에 드러낸다. 이걸 빼먹으면 예외가 핸들러를 조용히 끝내
+// "버튼을 눌러도 아무 일도 없다"로만 보인다
+function toastSaveError(what, err) {
+  console.error(`[${what}] 실패:`, err);
+  toast(err.code === 'permission-denied'
+    ? `${what} 권한이 없습니다. Firestore 규칙을 확인하세요.`
+    : `${what} 실패: ` + (err.message || err), 'danger');
 }
 
 function showAddStudentModal(teacher) {
@@ -1598,11 +1636,7 @@ function showAddStudentModal(teacher) {
         root.innerHTML = ''; resolve(true); render();
         toast(`${name} 학생을 등록했습니다`, 'success');
       } catch (err) {
-        // 이전에는 실패가 조용히 삼켜져 "추가를 눌러도 아무 일도 없다"로만 보였다
-        console.error('Student add failed:', err);
-        toast(err.code === 'permission-denied'
-          ? '학생 등록 권한이 없습니다. Firestore 규칙을 확인하세요.'
-          : '학생 등록 실패: ' + (err.message || err), 'danger');
+        toastSaveError('학생 등록', err);
         addBtn.disabled = false; cancelBtn.disabled = false;
       }
     };
@@ -1624,7 +1658,16 @@ function showEditStudentModal(teacher, student, idx) {
     const root = $('#modal-root');
     root.innerHTML = '';
     const backdrop = el('div', { class: 'modal-backdrop' });
-    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); } };
+    // 바깥을 잘못 눌러 고치던 내용이 사라지지 않도록 확인을 받는다
+    let askingCancel = false;
+    backdrop.onclick = async (e) => {
+      if (e.target !== backdrop || askingCancel) return;
+      askingCancel = true;
+      const ok = await confirmOverModal('학생 정보 수정 취소', '고친 내용이 저장되지 않습니다. 취소하시겠습니까?');
+      askingCancel = false;
+      if (!ok) return;
+      root.innerHTML = ''; resolve(false);
+    };
     const modal = el('div', { class: 'modal', style: 'max-width:400px' });
     modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, '✏️ 학생 정보 수정'));
 
@@ -1650,8 +1693,9 @@ function showEditStudentModal(teacher, student, idx) {
     field('나이', ageIn);
 
     const btns = el('div', { style: 'display:flex; gap:8px' });
-    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); } }, '취소'));
-    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+    const cancelBtn = el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); } }, '취소');
+    const saveBtn = el('button', { class: 'btn btn-primary', style: 'flex:1' }, '저장');
+    saveBtn.onclick = async () => {
       const name = nameIn.value.trim();
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       const duplicate = teacher.students.some((s, i) => i !== idx && s.name === name);
@@ -1659,18 +1703,33 @@ function showEditStudentModal(teacher, student, idx) {
       // 바뀐 항목만 보낸다. 문서 전체를 덮어쓰면 stats와 authUid가 날아가고,
       // authUid를 잃으면 재발급 때 이전 코드를 정리하지 못해 옛 코드가 계속 살아 있다
       const changes = { name, nationality: natSel.value, age: parseInt(ageIn.value) || null };
-      if (student.firestoreId) await fbUpdateStudent(student.firestoreId, changes);
-      teacher.students[idx] = { ...student, ...changes };
-      _adminProgressCache = null;
-      root.innerHTML = '';
-      resolve(true);
-      render();
-    } }, '저장'));
+
+      saveBtn.disabled = true; cancelBtn.disabled = true;
+      try {
+        if (student.firestoreId) await fbUpdateStudent(student.firestoreId, changes);
+        // 저장에 성공한 뒤에야 화면 명단을 고친다. 먼저 고치면 실패해도
+        // 바뀐 것처럼 보이다가 새로고침하면 옛 값으로 돌아온다
+        teacher.students[idx] = { ...student, ...changes };
+        _adminProgressCache = null;
+        root.innerHTML = '';
+        resolve(true);
+        render();
+        toast('수정했습니다', 'success');
+      } catch (err) {
+        toastSaveError('학생 정보 수정', err);
+        saveBtn.disabled = false; cancelBtn.disabled = false;
+      }
+    };
+    btns.appendChild(cancelBtn);
+    btns.appendChild(saveBtn);
     modal.appendChild(btns);
 
     backdrop.appendChild(modal);
     root.appendChild(backdrop);
     setTimeout(() => nameIn.focus(), 50);
+    const onEnter = (e) => { if (e.key === 'Enter') saveBtn.click(); };
+    nameIn.onkeydown = onEnter;
+    ageIn.onkeydown = onEnter;
   });
 }
 
