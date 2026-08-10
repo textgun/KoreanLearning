@@ -420,16 +420,17 @@ function renderTeacher() {
       if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
       
       if (!isTraining) {
-        // 원격 접속 발급 여부를 한눈에 보여준다
+        // 코드 발급 여부다. 지금 접속해 있는지가 아니다.
+        // 앱은 접속 상태를 추적하지 않으므로 '접속됨'이라고 쓰면 거짓말이 된다
         const hasRemote = !!s.authUid;
         const remoteBtn = el('button', {
           class: 'btn btn-ghost btn-sm',
           style: `padding:2px 8px; min-height:auto; display:inline-flex; align-items:center; gap:3px; margin-right:4px; font-size:0.78rem; font-weight:700; color:${hasRemote ? '#059669' : '#64748b'}`,
-          title: hasRemote ? '원격 접속 재발급' : '원격 접속 발급',
+          title: hasRemote ? '원격 접속 코드 재발급' : '원격 접속 코드 발급',
           onClick: () => showRemoteAccessModal(s)
         });
         remoteBtn.appendChild(el('i', { 'data-lucide': hasRemote ? 'smartphone' : 'smartphone-nfc', style: `width:14px; height:14px; color:${hasRemote ? '#059669' : '#94a3b8'};` }));
-        remoteBtn.appendChild(document.createTextNode(hasRemote ? '접속됨' : '원격'));
+        remoteBtn.appendChild(document.createTextNode(hasRemote ? '발급됨' : '미발급'));
         row.appendChild(remoteBtn);
 
         const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#3b82f6; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
