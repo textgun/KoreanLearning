@@ -3810,12 +3810,40 @@ function showTeacherModal(existing = null) {
   });
 }
 
+// 입력 중인 모달 위에 겹쳐 띄우는 확인창.
+// showConfirm()은 #modal-root를 통째로 비워서 뒤에 있는 모달과 입력값까지 날린다
+function confirmOverModal(title, message) {
+  return new Promise(resolve => {
+    const backdrop = el('div', { class: 'modal-backdrop', style: 'z-index:60' });
+    const close = (v) => { backdrop.remove(); resolve(v); };
+    backdrop.onclick = (e) => { if (e.target === backdrop) close(false); };
+    const modal = el('div', { class: 'modal', style: 'max-width:360px' });
+    modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, title));
+    modal.appendChild(el('div', { style: 'margin-bottom:18px; color:#475569; line-height:1.6' }, message));
+    const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });
+    btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => close(false) }, '계속 작성'));
+    btns.appendChild(el('button', { class: 'btn btn-danger', onClick: () => close(true) }, '취소하기'));
+    modal.appendChild(btns);
+    backdrop.appendChild(modal);
+    $('#modal-root').appendChild(backdrop);
+  });
+}
+
 function showAddStudentModal(teacher) {
   return new Promise(resolve => {
     const root = $('#modal-root');
     root.innerHTML = '';
     const backdrop = el('div', { class: 'modal-backdrop' });
-    backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); }};
+    // 바깥을 잘못 눌러 입력하던 내용이 사라지지 않도록 확인을 받는다
+    let askingCancel = false;
+    backdrop.onclick = async (e) => {
+      if (e.target !== backdrop || askingCancel) return;
+      askingCancel = true;
+      const ok = await confirmOverModal('학생 등록 취소', '입력한 내용이 사라집니다. 취소하시겠습니까?');
+      askingCancel = false;
+      if (!ok) return;
+      root.innerHTML = ''; resolve(false);
+    };
     const modal = el('div', { class: 'modal', style: 'max-width:400px' });
     modal.appendChild(el('h3', { style: 'margin-bottom:16px' }, '🧑‍🎓 학생 추가'));
 
@@ -3832,23 +3860,43 @@ function showAddStudentModal(teacher) {
     field('나이', ageIn);
 
     const btns = el('div', { style: 'display:flex; gap:8px' });
-    btns.appendChild(el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); }}, '취소'));
-    btns.appendChild(el('button', { class: 'btn btn-primary', style: 'flex:1', onClick: async () => {
+    const cancelBtn = el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; resolve(false); }}, '취소');
+    const addBtn = el('button', { class: 'btn btn-primary', style: 'flex:1' }, '추가');
+    addBtn.onclick = async () => {
       const name = nameIn.value.trim();
       if (!name) { toast('이름을 입력하세요', 'danger'); return; }
       if (!teacher.students) teacher.students = [];
       if (teacher.students.some(s => s.name === name)) { toast('이미 등록된 이름입니다', 'danger'); return; }
       const age = parseInt(ageIn.value) || null;
-      const firestoreId = await fbAddStudent(teacher.id, { name, nationality: natSel.value, age, teacherId: teacher.id });
-      if (!teacher.students) teacher.students = [];
-      teacher.students.push({ name, nationality: natSel.value, age, firestoreId, teacherId: teacher.id });
-      _adminProgressCache = null;
-      root.innerHTML = ''; resolve(true); render();
-    }}, '추가'));
+
+      // 저장이 끝나기 전 다시 누르면 같은 학생 문서가 두 개 만들어진다.
+      // 위 중복 검사가 보는 로컬 배열은 await 이후에야 채워지기 때문이다
+      addBtn.disabled = true; cancelBtn.disabled = true;
+      try {
+        const firestoreId = await fbAddStudent(teacher.id, { name, nationality: natSel.value, age, teacherId: teacher.id });
+        teacher.students.push({ name, nationality: natSel.value, age, firestoreId, teacherId: teacher.id });
+        _adminProgressCache = null;
+        root.innerHTML = ''; resolve(true); render();
+        toast(`${name} 학생을 등록했습니다`, 'success');
+      } catch (err) {
+        // 이전에는 실패가 조용히 삼켜져 "추가를 눌러도 아무 일도 없다"로만 보였다
+        console.error('Student add failed:', err);
+        toast(err.code === 'permission-denied'
+          ? '학생 등록 권한이 없습니다. Firestore 규칙을 확인하세요.'
+          : '학생 등록 실패: ' + (err.message || err), 'danger');
+        addBtn.disabled = false; cancelBtn.disabled = false;
+      }
+    };
+    btns.appendChild(cancelBtn);
+    btns.appendChild(addBtn);
     modal.appendChild(btns);
     backdrop.appendChild(modal);
     root.appendChild(backdrop);
     setTimeout(() => nameIn.focus(), 50);
+    // 이름을 치고 엔터를 눌러도 등록되게 한다
+    const onEnter = (e) => { if (e.key === 'Enter') addBtn.click(); };
+    nameIn.onkeydown = onEnter;
+    ageIn.onkeydown = onEnter;
   });
 }
 
