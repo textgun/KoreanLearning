@@ -15,6 +15,7 @@ let state = {
   currentTeacher: null,
   currentUser: null,
   adminTeacherId: null,
+  loadError: null,           // 로그인 직후 Firestore 조회가 실패한 이유 (교사 화면 배너)
   stats: { xp: 0, level: 1, streak: 0, badges: [], bestScores: {} },
   game: null
 };

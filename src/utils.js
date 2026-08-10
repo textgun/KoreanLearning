@@ -77,6 +77,17 @@ function validateParsedUnit(parsed) {
   return null;
 }
 
+// Firestore 오류를 교사가 읽고 조치할 수 있는 문장으로 바꾼다.
+// permission-denied가 압도적으로 흔하다. firestore.rules는 저장소에 있을 뿐
+// Firebase 콘솔에 직접 게시해야 적용되기 때문이다
+function firestoreErrorText(err) {
+  if (!err) return '알 수 없는 오류';
+  if (err.code === 'permission-denied') return 'Firestore 접근 권한이 없습니다. Firebase 콘솔에 firestore.rules를 게시했는지 확인하세요.';
+  if (err.code === 'unavailable') return '서버에 연결할 수 없습니다. 네트워크를 확인하세요.';
+  if (err.code === 'unauthenticated') return '로그인이 만료되었습니다. 다시 로그인하세요.';
+  return err.message || String(err);
+}
+
 // Custom confirm/prompt dialogs (artifacts iframe blocks window.confirm/prompt)
 function showConfirm(title, message, danger = false) {
   return new Promise(resolve => {

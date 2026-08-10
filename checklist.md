@@ -156,3 +156,14 @@
 - [x] 원격 접속 발급 — 발급 중·PIN 표시 중 바깥 클릭을 붙잡는다
 - [x] `toastSaveError()`로 실패 표시를 한 곳에 모음
 - [x] jsdom 33개 항목 검증 (전체 통과)
+
+
+## 18. 진짜 원인 — 교사 컨텍스트 유실 (2026-08-10)
+- [x] 재현. `state.currentTeacher`가 null이면 '추가'가 `teacher.students`에서
+      TypeError로 죽는다. try/catch 이전이라 토스트도 버튼 잠금도 안 걸린다
+- [x] `onAuthLogin` 순서 교정 — 단원·명단 조회보다 먼저 교사 컨텍스트를 세운다
+- [x] 교사 문서 조회 실패와 그 이후 실패를 분리 처리
+- [x] `state.loadError` + 교사 화면 상단 배너 (토스트는 2.2초 뒤 사라져 묻힌다)
+- [x] 학생 추가·수정 모달에 교사 컨텍스트 가드
+- [x] `firestoreErrorText()` — permission-denied를 조치 가능한 문장으로
+- [x] jsdom 41개 항목 검증 (전체 통과)

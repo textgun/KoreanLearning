@@ -533,3 +533,78 @@ jsdom으로 33개 항목 (전체 통과). 4차 16개 + 이번 17개.
 바깥 클릭 동작을 실제 DOM 이벤트로 확인했다.
 
 여전히 실제 Firebase 연결 테스트는 못 했다. 자격 증명이 없다.
+
+
+---
+
+# 6차 — "추가를 눌러도 아무 일도 없다"의 진짜 원인 (2026-08-10)
+
+4·5차에서 try/catch를 붙였는데도 증상이 그대로라는 보고를 받았다.
+토스트도 안 뜨고 버튼도 안 잠긴다면 **try 블록에 들어가기 전에 죽는다**는 뜻이다.
+
+## 재현
+
+```js
+state.currentUser = { uid:'u1', ... };   // 있음
+state.currentTeacher = null;             // 없음
+renderTeacher() → '학생 등록' 클릭 → '추가' 클릭
+→ TypeError: Cannot read properties of null (reading 'students')
+```
+
+`showAddStudentModal`의 세 번째 줄이다.
+
+```js
+if (!teacher.students) teacher.students = [];   // teacher가 null
+```
+
+`addBtn.disabled = true`도, `try {`도 그 아래에 있다. 그래서 **모달은 열린 채,
+토스트도 없이, 버튼도 멀쩡한 채** 아무 일도 안 일어난다. 보고된 증상 그대로다.
+
+## 왜 currentTeacher가 null이 되는가
+
+`onAuthLogin`의 순서가 문제였다.
+
+```js
+state.currentUser = { ...teacher };        // 230행 — 여기까지 오면 라우터 통과
+await loadTeacherData(teacher);            // 233행 — Firestore 읽기. 실패 가능
+...
+state.currentTeacher = teacherWithStudents; // 252행 — 여기서야 채워진다
+```
+
+233행이나 그 뒤 `fbGetStudents`가 던지면 catch로 빠지고 `state.view='home'`이 된다.
+**`currentUser`는 이미 채워져 있어 라우터는 통과**시키는데 `currentTeacher`만 null이다.
+그 상태의 교사 화면은 이렇게 보인다.
+
+- 명단 → "등록된 학생이 없습니다" (정상처럼 보임)
+- `isTraining`은 `state.currentTeacher && ...` 라 null이면 false → **학생 등록 버튼이 그대로 보인다**
+- 눌러도 아무 일도 없다
+
+즉 **화면은 완전히 정상으로 보이는데 모든 동작이 조용히 죽어 있는 상태**다.
+가장 나쁜 종류의 실패다. 실패했다는 사실 자체가 화면 어디에도 없다.
+
+기존 catch에 토스트가 있긴 했다. `toast('데이터 로드 중 오류: ...')`. 하지만
+2.2초 뒤 사라지고 로딩 화면 전환과 겹쳐서 실질적으로 아무도 못 본다.
+
+## 결정 1. 컨텍스트를 먼저 세우고, 실패를 두 단계로 나눈다
+
+- **교사 문서 조회 실패** — 이 세션으로 할 수 있는 게 없다. `currentTeacher`를
+  명시적으로 null로 두고 배너에 "학생 등록이 동작하지 않습니다"까지 적는다.
+- **그 이후 실패 (단원·명단)** — `state.currentTeacher = { ...teacher, students: [] }`를
+  **먼저** 세워두고 조회한다. 명단이 비어 보일 뿐 등록·수정은 정상 동작한다.
+
+## 결정 2. 토스트 대신 배너
+
+`state.loadError`에 이유를 담아두고 교사 화면 상단에 붉은 패널로 붙인다.
+사라지지 않는다. 명단이 왜 비었는지, 무엇을 고쳐야 하는지가 화면에 남는다.
+
+## 결정 3. 모달 진입 가드
+
+`showAddStudentModal` / `showEditStudentModal` 첫 줄에서 교사 컨텍스트를 확인한다.
+배너를 못 보고 버튼을 눌렀을 때 최소한 이유는 알려준다.
+
+## 남은 것
+
+**근본 원인은 여전히 Firestore가 왜 거부하느냐다.** 이번 작업은 그것이
+*보이게* 만든 것이지 고친 게 아니다. 배포 후 교사 화면 상단 배너 문구가
+다음 단서다. "Firebase 콘솔에 firestore.rules를 게시했는지 확인하세요"가
+뜬다면 규칙 미게시가 확정이다.

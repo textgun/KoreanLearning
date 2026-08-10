@@ -31,6 +31,7 @@ async function fbSignOut() {
   state.classmates = [];
   state.role = null;
   state.students = [];
+  state.loadError = null;
   masterState.teachers = [];
   state.view = 'login';
   render();
@@ -179,6 +180,7 @@ async function onStudentLogin(studentDoc) {
   state.currentUser = { uid: studentDoc.authUid, name: studentDoc.name };
   state.currentTeacher = null;
   state.students = [];
+  state.loadError = null;
   masterState.teachers = [];
   state.currentStudent = studentDoc.name;
   state.currentStudentDoc = studentDoc;
@@ -207,9 +209,13 @@ async function onStudentLogin(studentDoc) {
 }
 
 async function onAuthLogin(fbUser) {
+  state.role = 'teacher';
+  state.loadError = null;
+  state.view = 'home'; // 오류가 나도 홈으로 (로그인 루프 방지)
+
+  let teacher = null;
   try {
-    state.role = 'teacher';
-    let teacher = await fbGetTeacher(fbUser.uid);
+    teacher = await fbGetTeacher(fbUser.uid);
 
     // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
     // auth.signOut()을 호출하면 onAuthStateChanged 중복 실행 버그 발생 → 제거
@@ -226,9 +232,26 @@ async function onAuthLogin(fbUser) {
       });
       teacher = await fbGetTeacher(fbUser.uid);
     }
+  } catch (e) {
+    // 교사 문서를 못 읽으면 이 세션으로 할 수 있는 일이 없다.
+    // 예전에는 여기서 조용히 홈으로 보내 state.currentTeacher가 null인 채
+    // 교사 화면이 열렸고, 학생 등록 버튼을 눌러도 아무 반응이 없었다
+    console.error('Teacher doc load failed:', e);
+    state.currentUser = { uid: fbUser.uid, email: fbUser.email, name: fbUser.email.split('@')[0] };
+    state.currentTeacher = null;
+    state.loadError = firestoreErrorText(e);
+    return;
+  }
 
-    state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
+  state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
 
+  // 단원·명단 로드보다 먼저 교사 컨텍스트를 세운다. 이 순서가 뒤집히면
+  // 뒤쪽 조회가 하나라도 실패했을 때 currentTeacher가 null로 남는데,
+  // 화면은 멀쩡해 보이면서 학생 등록·수정이 전부 조용히 터진다
+  state.currentTeacher = { ...teacher, students: [] };
+  state.students = [];
+
+  try {
     // 단원은 교사 계정에 붙어 있으므로 로그인이 끝난 뒤에 읽는다
     await loadTeacherData(teacher);
 
@@ -255,11 +278,10 @@ async function onAuthLogin(fbUser) {
       if (idx >= 0) masterState.teachers[idx] = teacherWithStudents;
       else masterState.teachers.push(teacherWithStudents);
     }
-
-    state.view = 'home';
   } catch (e) {
-    console.error('onAuthLogin error:', e);
-    toast('데이터 로드 중 오류: ' + (e.message || e), 'danger');
-    state.view = 'home'; // 오류 시에도 홈으로 (로그인 루프 방지)
+    // 여기서 실패해도 교사 컨텍스트는 살아 있다. 명단이 비어 보일 뿐이고
+    // 배너로 이유를 알린다
+    console.error('Teacher data load failed:', e);
+    state.loadError = firestoreErrorText(e);
   }
 }

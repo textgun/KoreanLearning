@@ -34,6 +34,7 @@
         state.classmates = [];
         state.role = null;
         state.students = [];
+        state.loadError = null;
         state.units = [];
         masterState.teachers = [];
         state.view = 'login';

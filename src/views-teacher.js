@@ -274,13 +274,33 @@ function renderHome() {
 
 
 
+// 로그인 직후 Firestore 조회가 실패했을 때 이유를 화면에 붙여둔다.
+// 토스트는 2.2초 뒤 사라져 로딩 화면에 묻힌다. 그래서 명단이 왜 비어 있는지
+// 아무도 모른 채 버튼만 눌러보게 된다
+function renderLoadErrorBanner() {
+  if (!state.loadError) return null;
+  const box = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger); background:#fef2f2' });
+  const t = el('h3', { style: 'color:#991b1b; display:flex; align-items:center; gap:8px; margin:0 0 8px' });
+  t.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:#991b1b;' }));
+  t.appendChild(document.createTextNode('데이터를 불러오지 못했습니다'));
+  box.appendChild(t);
+  box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:0' }, state.loadError));
+  if (!state.currentTeacher) {
+    box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:8px 0 0; font-weight:700' },
+      '교사 정보를 읽지 못해 단원 생성과 학생 등록이 동작하지 않습니다.'));
+  }
+  return box;
+}
+
 function renderTeacher() {
   const root = el('div');
+  const banner = renderLoadErrorBanner();
+  if (banner) root.appendChild(banner);
   const panel = el('div', { class: 'panel' });
   const head = el('div', { class: 'row-between' });
-  
+
   const isTraining = state.currentTeacher && state.currentTeacher.status === 'training';
-  
+
   const title = el('h2', { style: 'display:flex; align-items:center; gap:8px' });
   title.appendChild(el('i', { 'data-lucide': 'book-open', style: 'width:24px; height:24px; color:var(--primary);' }));
   title.appendChild(document.createTextNode('단원 관리'));
@@ -1581,12 +1601,16 @@ function confirmOverModal(title, message, keepLabel = '계속 작성', discardLa
 // "버튼을 눌러도 아무 일도 없다"로만 보인다
 function toastSaveError(what, err) {
   console.error(`[${what}] 실패:`, err);
-  toast(err.code === 'permission-denied'
-    ? `${what} 권한이 없습니다. Firestore 규칙을 확인하세요.`
-    : `${what} 실패: ` + (err.message || err), 'danger');
+  toast(`${what} 실패. ` + firestoreErrorText(err), 'danger');
 }
 
 function showAddStudentModal(teacher) {
+  // 교사 컨텍스트가 비어 있으면 모달을 열어봐야 '추가'에서 null 참조로 죽는다.
+  // 예외가 핸들러를 조용히 끝내서 "눌러도 아무 일도 없다"로만 보였다
+  if (!teacher || !teacher.id) {
+    toast('교사 정보를 불러오지 못해 학생을 등록할 수 없습니다. 새로고침 후 다시 로그인하세요.', 'danger');
+    return Promise.resolve(false);
+  }
   return new Promise(resolve => {
     const root = $('#modal-root');
     root.innerHTML = '';
@@ -1654,6 +1678,10 @@ function showAddStudentModal(teacher) {
 }
 
 function showEditStudentModal(teacher, student, idx) {
+  if (!teacher || !teacher.students) {
+    toast('교사 정보를 불러오지 못해 수정할 수 없습니다. 새로고침 후 다시 로그인하세요.', 'danger');
+    return Promise.resolve(false);
+  }
   return new Promise(resolve => {
     const root = $('#modal-root');
     root.innerHTML = '';
