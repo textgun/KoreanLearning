@@ -176,4 +176,11 @@
 - [x] **Firebase 콘솔에 `firestore.rules` 게시** (2026-08-10 완료)
 - [x] **고아 인증 계정 3개 삭제** (2026-08-10 완료)
       `s-jhyt7255` / `s-dgkq9482` / `s-qnna6454` @student.korean-learning.app
-- [ ] 게시 후 원격 발급 재시도 → 코드·PIN이 뜨는지 확인
+- [x] 게시 후 원격 발급 재시도 → 코드·PIN 정상 출력 (2026-08-10)
+
+## 20. 남은 검증 — 학생 로그인 (미확인)
+- [ ] 학생 탭에서 코드+PIN 로그인 (`fbStudentSignIn`)
+- [ ] `fbFindStudentByAuthUid` — `where('authUid','==',본인uid)` 목록 질의
+- [ ] `fbGetCurriculum` — 담당 교사 단원 읽기
+- [ ] 리더보드용 `fbGetStudents` — 규칙에 `get()`이 섞인 질의라 가장 불확실
+- [ ] 학습 기록 저장 (`stats`만 수정하는 규칙)

@@ -675,3 +675,33 @@ Firebase Auth 계정 삭제는 Admin SDK 권한이 필요하다.
 1. Firebase 콘솔에 `firestore.rules` 게시
 2. 고아 계정 3개 삭제
 3. 원격 발급 재시도. 코드·PIN이 뜨면 끝
+
+
+---
+
+# 8차 — 원격 발급 성공 (2026-08-10)
+
+규칙 게시 후 첫 발급이 통과했다. 코드 `FSHJ-4562` 출력 확인.
+
+이로써 발급 경로 세 단계가 실제 Firebase에서 전부 검증됐다.
+
+1. `fbCreateStudentAuth` — 보조 앱으로 학생 계정 생성, 교사 세션 유지
+2. `fbSaveStudentIndex` — `studentIndex/{authUid}` create
+3. `fbUpdateStudent` — `students/{sid}`에 `authUid` 연결
+
+7차 진단이 맞았다. 원인은 코드가 아니라 **게시된 규칙에 `studentIndex`
+블록이 없었던 것**이다.
+
+## 다음으로 깨질 가능성이 높은 곳
+
+학생 로그인 경로는 아직 한 번도 안 돌았다. 그중 `students`의 `list` 규칙이
+가장 불확실하다. 3차 노트에 적어둔 우려가 그대로 남아 있다.
+
+```
+allow list: if ... || (isStudent() && studentLink().teacherId == resource.data.teacherId);
+```
+
+Firestore는 목록 질의 규칙을 정적으로 분석하는데, `get()`이 섞인 조건을
+어떻게 다루는지 배포 없이는 확신할 수 없었다. 이제 실제로 확인할 수 있다.
+막히더라도 `onStudentLogin`이 `try/catch`로 감싸 리더보드만 빠지고
+학습은 계속되도록 해뒀다.
