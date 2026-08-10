@@ -1,5 +1,7 @@
 # src/ 파일들을 합쳐서 GitHub Pages 배포용 dist/index.html을 생성하는 빌드 스크립트
 from pathlib import Path
+from datetime import datetime
+import subprocess
 import sys
 import re
 
@@ -18,6 +20,19 @@ SCRIPTS = [
     "firebase.js",
     "app.js"
 ]
+
+def build_id():
+    """빌드 시각 + 커밋 해시. 커밋 정보를 못 읽으면 시각만 쓴다."""
+    stamp = datetime.now().strftime("%m-%d %H:%M")
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=5)
+        if sha.returncode == 0:
+            return f"{stamp} ({sha.stdout.strip()})"
+    except Exception:
+        pass
+    return stamp
+
 
 def main():
     if not SRC.exists():
@@ -65,6 +80,12 @@ def main():
         else:
             print("[ERROR] index.html의 스크립트 매핑 영역을 검출할 수 없습니다.")
             sys.exit(1)
+
+    # 빌드 식별자를 심는다. 브라우저가 옛 파일을 캐시하고 있으면
+    # "고쳤는데 그대로다"의 원인을 찾는 데 시간이 통째로 날아간다.
+    # 화면 왼쪽 아래에 작게 뜨고 콘솔에도 찍힌다
+    # 앱 스크립트보다 먼저 실행돼야 하므로 <body> 바로 다음에 넣는다
+    output = output.replace("<body>", f"<body>\n<script>window.BUILD_ID = {build_id()!r};</script>", 1)
 
     out_path = DIST / "index.html"
     out_path.write_text(output, encoding="utf-8")

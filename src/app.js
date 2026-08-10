@@ -3,6 +3,14 @@
    ========================================================= */
 (async function init() {
   try {
+    // 브라우저가 옛 파일을 캐시하고 있는지 한눈에 알 수 있게 빌드를 남긴다.
+    // 화면 왼쪽 아래 회색 글씨로도 뜬다 (build.py가 window.BUILD_ID를 심는다)
+    console.info('한국어 학습 빌드:', window.BUILD_ID || '(개발 모드)');
+    const stamp = el('div', {
+      style: 'position:fixed; left:6px; bottom:4px; z-index:5; font-size:0.68rem; color:#94a3b8; pointer-events:none'
+    }, 'build ' + (window.BUILD_ID || 'dev'));
+    document.body.appendChild(stamp);
+
     // Firebase Auth 상태 감지 → 로그인 여부에 따라 라우팅
     // _signingUp 플래그: 회원가입 중 중복 실행 방지
     auth.onAuthStateChanged(async (fbUser) => {
