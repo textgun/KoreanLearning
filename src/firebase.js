@@ -192,9 +192,11 @@ async function onStudentLogin(studentDoc) {
     const curriculum = await fbGetCurriculum(studentDoc.teacherId);
     state.units = (curriculum && Array.isArray(curriculum.units)) ? curriculum.units : [];
   } catch (e) {
+    // 토스트만 띄우면 2.2초 뒤 사라져서, 단원을 못 읽은 것인지 선생님이
+    // 아직 안 만든 것인지 학생도 교사도 구분할 수 없다
     console.error('Curriculum load failed:', e);
     state.units = [];
-    toast('단원을 불러오지 못했습니다. 선생님께 문의하세요.', 'danger');
+    state.loadError = firestoreErrorText(e);
   }
 
   // 리더보드용 같은 반 명단. 규칙이 막으면 리더보드만 빠지고 학습은 계속된다

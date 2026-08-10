@@ -705,3 +705,59 @@ Firestore는 목록 질의 규칙을 정적으로 분석하는데, `get()`이 �
 어떻게 다루는지 배포 없이는 확신할 수 없었다. 이제 실제로 확인할 수 있다.
 막히더라도 `onStudentLogin`이 `try/catch`로 감싸 리더보드만 빠지고
 학습은 계속되도록 해뒀다.
+
+
+---
+
+# 9차 — 학생 로그인 성공, 그리고 단원이 비어 있던 이유 (2026-08-11)
+
+## 3차부터 걱정하던 것이 해결됐다
+
+리더보드가 떴다. 즉 이 규칙이 실제로 통과한다.
+
+```
+allow list: if ... || (isStudent() && studentLink().teacherId == resource.data.teacherId);
+```
+
+목록 질의 규칙에 `get()`이 섞이면 Firestore가 어떻게 다루는지 배포 없이는
+확신할 수 없었는데, **문제없이 동작한다**. 3차 노트의 미확인 항목을 지운다.
+
+## 단원이 비어 있던 진짜 이유
+
+규칙 문제가 아니었다. `loadTeacherData`의 샘플 단원 폴백이 **메모리에만**
+있었다.
+
+```js
+const legacy = await _readLocalUnits();
+if (!legacy) { state.units = [SAMPLE_UNIT]; return; }   // 저장이 없다
+```
+
+교사는 `state.units`를 보고, 학생은 `curricula/{teacherId}`를 읽는다.
+샘플 단원은 `state.units`에만 있고 Firestore에는 없다. 그래서
+**교사 화면에는 단원이 보이는데 학생 화면에는 "아직 단원이 없습니다"** 가 뜬다.
+
+같은 패턴이 한 군데 더 있었다.
+
+```js
+state.units = curriculum.units.length > 0 ? curriculum.units : [SAMPLE_UNIT];
+```
+
+이건 더 나쁘다. 교사가 단원을 **전부 지워도** 다음 로그인에 샘플이 되살아난다.
+지운 것이 되돌아오는 건 저장 계층에서 가장 하면 안 되는 일이다.
+
+## 결정. 씨앗은 한 번만, 삭제는 존중
+
+- `curricula` 문서가 **없다** → 신규 교사. 샘플 단원을 만들고 **저장한다**.
+- `curricula` 문서가 **있고 units가 빈 배열** → 교사가 다 지웠다. 그대로 둔다.
+- `curricula` 문서가 있고 단원이 있다 → 그대로 읽는다.
+
+"있으면 그걸 쓴다"는 기존 원칙은 유지하되, 없을 때 만드는 것과
+비었을 때 채우는 것을 구분했다. 이 둘을 같게 취급한 게 버그였다.
+
+## 학생 세션의 실패도 배너로
+
+`onStudentLogin`의 단원 로드 실패는 2.2초짜리 토스트뿐이었다.
+학생 입장에서 "선생님이 아직 안 만들었다"와 "못 읽었다"를 구분할 수 없다.
+`state.loadError`에 담아 학생 화면에도 같은 배너를 띄운다.
+`renderLoadErrorBanner`는 학생 세션에서 `currentTeacher`가 원래 null이므로
+교사 전용 안내 문구는 `state.role`로 걸렀다.

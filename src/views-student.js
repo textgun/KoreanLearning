@@ -80,6 +80,8 @@ function renderStudentSelect() {
 function renderStudent() {
   if (!state.currentStudent) { state.view = 'student-select'; render(); return el('div'); }
   const root = el('div');
+  const banner = renderLoadErrorBanner();
+  if (banner) root.appendChild(banner);
   const panel = el('div', { class: 'panel' });
   
   const sTitle = el('h2', { style: 'display:flex; align-items:center; gap:8px' });

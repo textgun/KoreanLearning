@@ -285,7 +285,8 @@ function renderLoadErrorBanner() {
   t.appendChild(document.createTextNode('데이터를 불러오지 못했습니다'));
   box.appendChild(t);
   box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:0' }, state.loadError));
-  if (!state.currentTeacher) {
+  // 학생 세션은 currentTeacher가 원래 null이다. 교사에게만 해당하는 안내다
+  if (state.role === 'teacher' && !state.currentTeacher) {
     box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:8px 0 0; font-weight:700' },
       '교사 정보를 읽지 못해 단원 생성과 학생 등록이 동작하지 않습니다.'));
   }

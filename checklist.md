@@ -179,8 +179,15 @@
 - [x] 게시 후 원격 발급 재시도 → 코드·PIN 정상 출력 (2026-08-10)
 
 ## 20. 남은 검증 — 학생 로그인 (미확인)
-- [ ] 학생 탭에서 코드+PIN 로그인 (`fbStudentSignIn`)
-- [ ] `fbFindStudentByAuthUid` — `where('authUid','==',본인uid)` 목록 질의
-- [ ] `fbGetCurriculum` — 담당 교사 단원 읽기
-- [ ] 리더보드용 `fbGetStudents` — 규칙에 `get()`이 섞인 질의라 가장 불확실
+- [x] 학생 탭에서 코드+PIN 로그인 (`fbStudentSignIn`) — 성공
+- [x] `fbFindStudentByAuthUid` — `where('authUid','==',본인uid)` 목록 질의 — 성공
+- [x] `fbGetCurriculum` — 규칙은 통과. 단원이 빈 것은 저장이 안 된 탓 (아래)
+- [x] 리더보드용 `fbGetStudents` — **동작 확인**. `get()`이 섞인 list 규칙이 통과했다
 - [ ] 학습 기록 저장 (`stats`만 수정하는 규칙)
+
+## 21. 샘플 단원이 저장되지 않던 문제 (2026-08-11)
+- [x] `loadTeacherData`의 샘플 단원 폴백이 Firestore에 저장되지 않았다
+- [x] 신규 교사면 샘플 단원을 실제로 `curricula`에 저장
+- [x] `curricula.units`가 빈 배열이면 교사가 지운 것으로 보고 존중 (샘플 부활 금지)
+- [x] 학생 세션의 단원 로드 실패도 배너로 표시
+- [ ] 교사 화면에서 단원을 새로 만들어 학생 화면에 뜨는지 확인 (사용자 직접)

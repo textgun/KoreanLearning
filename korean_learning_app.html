@@ -1398,7 +1398,7 @@ label {
 </style>
 </head>
 <body>
-<script>window.BUILD_ID = '08-10 17:42 (f57b1df)';</script>
+<script>window.BUILD_ID = '08-11 00:03 (399e00a)';</script>
 <div id="app"></div>
 <div id="toast"></div>
 <div id="modal-root"></div>
@@ -1612,7 +1612,9 @@ async function loadTeacherData(teacher) {
 
   const curriculum = await fbGetCurriculum(uid);
   if (curriculum && Array.isArray(curriculum.units)) {
-    state.units = curriculum.units.length > 0 ? curriculum.units : [SAMPLE_UNIT];
+    // 빈 배열이면 교사가 단원을 전부 지운 것이다. 샘플로 채우면
+    // 지운 단원이 로그인할 때마다 되살아난다
+    state.units = curriculum.units;
     state.language = curriculum.language || 'en';
     return;
   }
@@ -1628,7 +1630,14 @@ async function loadTeacherData(teacher) {
   // 2순위. 이 기기에만 남아 있는 옛 데이터
   state.language = teacher.language || 'en';
   const legacy = await _readLocalUnits();
-  if (!legacy) { state.units = [SAMPLE_UNIT]; return; }
+  if (!legacy) {
+    // 처음 로그인하는 교사. 샘플 단원을 실제로 저장해야 한다.
+    // 저장하지 않으면 교사 화면에만 보이고, 학생은 curricula를 읽으므로
+    // "아직 단원이 없습니다"만 보게 된다
+    state.units = [SAMPLE_UNIT];
+    await _doSaveTeacher();
+    return;
+  }
 
   state.units = legacy.units;
   if (legacy.language) state.language = legacy.language;
@@ -2579,7 +2588,8 @@ function renderLoadErrorBanner() {
   t.appendChild(document.createTextNode('데이터를 불러오지 못했습니다'));
   box.appendChild(t);
   box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:0' }, state.loadError));
-  if (!state.currentTeacher) {
+  // 학생 세션은 currentTeacher가 원래 null이다. 교사에게만 해당하는 안내다
+  if (state.role === 'teacher' && !state.currentTeacher) {
     box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:8px 0 0; font-weight:700' },
       '교사 정보를 읽지 못해 단원 생성과 학생 등록이 동작하지 않습니다.'));
   }
@@ -4164,6 +4174,8 @@ function renderStudentSelect() {
 function renderStudent() {
   if (!state.currentStudent) { state.view = 'student-select'; render(); return el('div'); }
   const root = el('div');
+  const banner = renderLoadErrorBanner();
+  if (banner) root.appendChild(banner);
   const panel = el('div', { class: 'panel' });
   
   const sTitle = el('h2', { style: 'display:flex; align-items:center; gap:8px' });
@@ -5374,9 +5386,11 @@ async function onStudentLogin(studentDoc) {
     const curriculum = await fbGetCurriculum(studentDoc.teacherId);
     state.units = (curriculum && Array.isArray(curriculum.units)) ? curriculum.units : [];
   } catch (e) {
+    // 토스트만 띄우면 2.2초 뒤 사라져서, 단원을 못 읽은 것인지 선생님이
+    // 아직 안 만든 것인지 학생도 교사도 구분할 수 없다
     console.error('Curriculum load failed:', e);
     state.units = [];
-    toast('단원을 불러오지 못했습니다. 선생님께 문의하세요.', 'danger');
+    state.loadError = firestoreErrorText(e);
   }
 
   // 리더보드용 같은 반 명단. 규칙이 막으면 리더보드만 빠지고 학습은 계속된다

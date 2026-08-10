@@ -107,7 +107,9 @@ async function loadTeacherData(teacher) {
 
   const curriculum = await fbGetCurriculum(uid);
   if (curriculum && Array.isArray(curriculum.units)) {
-    state.units = curriculum.units.length > 0 ? curriculum.units : [SAMPLE_UNIT];
+    // 빈 배열이면 교사가 단원을 전부 지운 것이다. 샘플로 채우면
+    // 지운 단원이 로그인할 때마다 되살아난다
+    state.units = curriculum.units;
     state.language = curriculum.language || 'en';
     return;
   }
@@ -123,7 +125,14 @@ async function loadTeacherData(teacher) {
   // 2순위. 이 기기에만 남아 있는 옛 데이터
   state.language = teacher.language || 'en';
   const legacy = await _readLocalUnits();
-  if (!legacy) { state.units = [SAMPLE_UNIT]; return; }
+  if (!legacy) {
+    // 처음 로그인하는 교사. 샘플 단원을 실제로 저장해야 한다.
+    // 저장하지 않으면 교사 화면에만 보이고, 학생은 curricula를 읽으므로
+    // "아직 단원이 없습니다"만 보게 된다
+    state.units = [SAMPLE_UNIT];
+    await _doSaveTeacher();
+    return;
+  }
 
   state.units = legacy.units;
   if (legacy.language) state.language = legacy.language;
