@@ -1398,7 +1398,7 @@ label {
 </style>
 </head>
 <body>
-<script>window.BUILD_ID = '08-11 00:38 (8100d8e)';</script>
+<script>window.BUILD_ID = '08-11 23:43 (28ea9be)';</script>
 <div id="app"></div>
 <div id="toast"></div>
 <div id="modal-root"></div>
@@ -1534,13 +1534,48 @@ async function _withRetry(fn, attempts = 3) {
   throw lastErr;
 }
 
+// 이 세션이 서버에 있다고 알고 있는 단원 id.
+// "내가 지운 단원"과 "다른 기기가 새로 만든 단원"을 구분하는 유일한 근거다
+let _baselineUnitIds = new Set();
+function _rememberUnits(units) { _baselineUnitIds = new Set((units || []).map(u => u.id)); }
+
+// 저장 직전 서버를 다시 읽어 단원 id 기준으로 합친다.
+// 배열을 통째로 덮어쓰면, 로그인 이후 다른 기기에서 만든 단원이 조용히 사라진다.
+// 두 기기가 같은 시각에 저장할 필요도 없다. 이쪽 메모리는 로그인 순간에
+// 멈춰 있고 실시간 구독이 없기 때문이다
+async function _mergeWithServer(uid) {
+  let remote;
+  try {
+    remote = await fbGetCurriculum(uid);
+  } catch (e) {
+    // 읽지 못하면 병합을 포기한다. 저장 자체를 막지는 않는다
+    console.warn('Merge read failed:', e);
+    return state.units;
+  }
+  if (!remote || !Array.isArray(remote.units)) return state.units;
+
+  const mine = new Set(state.units.map(u => u.id));
+  // 내 목록에 없으면서 세션 시작 시점에도 없던 단원 = 다른 기기가 만든 것.
+  // 세션 시작 시점에 있었다면 내가 지운 것이므로 되살리지 않는다
+  const foreign = remote.units.filter(u => !mine.has(u.id) && !_baselineUnitIds.has(u.id));
+  return foreign.length ? [...state.units, ...foreign] : state.units;
+}
+
 async function _doSaveTeacher() {
   // 단원은 교사 계정에 속한다. 로그인 전이거나 학생 세션이면 저장할 곳이 없다
   const uid = state.currentUser && state.currentUser.uid;
   if (!uid || state.role !== 'teacher' || _savingTeacher) return;
   _savingTeacher = true;
   try {
-    await _withRetry(() => fbSaveCurriculum(uid, { units: state.units, language: state.language }), 3);
+    const merged = await _mergeWithServer(uid);
+    await _withRetry(() => fbSaveCurriculum(uid, { units: merged, language: state.language }), 3);
+    if (merged !== state.units) {
+      const added = merged.length - state.units.length;
+      state.units = merged;
+      // 여기서 render()를 부르면 편집 중 입력 포커스가 날아간다. 다음 그리기에 반영된다
+      toast(`다른 기기에서 만든 단원 ${added}개를 함께 반영했습니다`, 'accent');
+    }
+    _rememberUnits(merged);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
     return true;
   } catch (e) {
@@ -1604,6 +1639,17 @@ async function _readLocalUnits() {
   return null;
 }
 
+// 관리자가 발행한 공용 단원을 읽는다. 실패해도 개인 단원 학습은 계속돼야 한다
+async function loadSharedUnits() {
+  try {
+    const shared = await fbGetSharedCurriculum();
+    state.sharedUnits = (shared && Array.isArray(shared.units)) ? shared.units : [];
+  } catch (e) {
+    console.warn('Shared units load failed:', e);
+    state.sharedUnits = [];
+  }
+}
+
 // 로그인한 교사의 단원과 설정을 읽는다. 단원은 curricula/{teacherId}에 있다.
 // 교사 문서에는 연락처·주소가 함께 들어 있어 학생에게 열 수 없기 때문에 분리했다.
 // 플래그를 두지 않고 "있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
@@ -1616,6 +1662,7 @@ async function loadTeacherData(teacher) {
     // 지운 단원이 로그인할 때마다 되살아난다
     state.units = curriculum.units;
     state.language = curriculum.language || 'en';
+    _rememberUnits(state.units);
     return;
   }
 
@@ -1882,6 +1929,22 @@ function toast(msg, type = '') {
 function getLangInfo() { return LANGS.find(l => l.code === state.language) || LANGS[0]; }
 
 // 단원을 난이도 순서대로 묶는다. 단원이 없는 난이도는 결과에서 제외한다.
+// 공용 단원 id는 원본 id에 접두어를 붙여 고정한다.
+// 진도 기록이 `${unitId}_${activity}` 키라 id가 바뀌면 학생 진도가 초기화된다
+const SHARED_UNIT_PREFIX = 'shared_';
+function sharedIdOf(unitId) { return SHARED_UNIT_PREFIX + unitId; }
+function isSharedUnit(unit) { return !!unit && String(unit.id).startsWith(SHARED_UNIT_PREFIX); }
+
+// 화면에 보여줄 전체 단원. 공용 단원이 앞, 내 단원이 뒤다.
+// state.units에 절대 합치지 않는다. 합치면 _doSaveTeacher가 state.units를
+// 통째로 쓰기 때문에 공용 단원 전체가 교사 문서로 복사된다
+function allUnits() {
+  const shared = state.sharedUnits || [];
+  // 발행한 관리자에게는 원본과 공용본이 둘 다 잡힌다. 원본만 남긴다
+  const publishedFromMine = new Set(state.units.map(u => sharedIdOf(u.id)));
+  return [...shared.filter(u => !publishedFromMine.has(u.id)), ...state.units];
+}
+
 // level이 없거나 아는 값이 아니면 기초로 본다.
 // 모르는 값을 그냥 두면 어느 그룹에도 안 들어가 단원이 화면에서 사라진다
 function groupUnitsByLevel(units) {
@@ -2029,7 +2092,8 @@ let state = {
   view: 'login',
   language: 'en',
   students: [],
-  units: [],
+  units: [],                 // 내 단원. 저장 대상
+  sharedUnits: [],           // 관리자가 발행한 공용 단원. 읽기 전용, 절대 저장하지 않는다
   currentUnitId: null,
   currentActivity: null,
   role: null,                // 'teacher' | 'student' — 원격 접속 학생과 교사를 구분
@@ -2652,14 +2716,42 @@ function renderTeacher() {
   
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF 업로드 또는 직접 입력으로 단원을 만들고 편집할 수 있습니다.'));
 
-  if (state.units.length === 0) {
+  const visibleUnits = allUnits();
+  if (visibleUnits.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
+    const isAdmin = !!(state.currentUser && state.currentUser.isAdmin);
+
     const makeUnitItem = (u) => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
-      info.appendChild(el('h4', {}, u.title));
+      const shared = isSharedUnit(u);
+
+      const h = el('h4', { style: 'display:flex; align-items:center; gap:6px; flex-wrap:wrap' });
+      h.appendChild(document.createTextNode(u.title));
+      if (shared) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#5b21b6; background:#ede9fe; border-radius:20px; padding:2px 8px' }, '공용'));
+      else if (isAdmin && isPublished(u)) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#065f46; background:#d1fae5; border-radius:20px; padding:2px 8px' }, '발행됨'));
+      info.appendChild(h);
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
+
+      // 공용 단원은 관리자 문서에 있다. 교사가 편집하면 자기 문서에만 반영되는
+      // 유령 수정이 되므로 편집·삭제를 아예 주지 않는다
+      if (shared) {
+        const actions = el('div', { class: 'unit-actions' });
+        if (!isTraining) {
+          const copyBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => copySharedUnit(u) });
+          copyBtn.appendChild(el('i', { 'data-lucide': 'copy', style: 'width:13px; height:13px;' }));
+          copyBtn.appendChild(document.createTextNode('내 단원으로 복사'));
+          actions.appendChild(copyBtn);
+        }
+        if (isAdmin) {
+          const downBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => unpublishUnit(u) });
+          downBtn.appendChild(document.createTextNode('발행 취소'));
+          actions.appendChild(downBtn);
+        }
+        item.append(info, actions);
+        return item;
+      }
 
       if (!isTraining) {
         const actions = el('div', { class: 'unit-actions' });
@@ -2668,6 +2760,22 @@ function renderTeacher() {
         editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
         editBtn.appendChild(document.createTextNode('편집'));
         actions.appendChild(editBtn);
+
+        // 발행은 관리자만 한다. 발행 후 원본을 고치면 '발행 갱신'을 다시 눌러야
+        // 교사·학생에게 반영된다. 자동 동기화는 쓰기 횟수만 늘린다
+        if (isAdmin) {
+          const published = isPublished(u);
+          const pubBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#5b21b6', onClick: () => publishUnit(u) });
+          pubBtn.appendChild(el('i', { 'data-lucide': 'share-2', style: 'width:13px; height:13px;' }));
+          pubBtn.appendChild(document.createTextNode(published ? '발행 갱신' : '공용으로 발행'));
+          actions.appendChild(pubBtn);
+
+          if (published) {
+            const downBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#b91c1c', onClick: () => unpublishUnit(u) });
+            downBtn.appendChild(document.createTextNode('발행 취소'));
+            actions.appendChild(downBtn);
+          }
+        }
 
         const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
         delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
@@ -2684,7 +2792,7 @@ function renderTeacher() {
     };
 
     // 난이도별로 묶어 표시한다. 단원이 없는 난이도는 나오지 않는다
-    groupUnitsByLevel(state.units).forEach(g => {
+    groupUnitsByLevel(visibleUnits).forEach(g => {
       const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 8px' });
       head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:17px; height:17px; color:${g.level.color};` }));
       head.appendChild(el('span', { style: `font-weight:800; font-size:1rem; color:${g.level.color}` }, g.level.name));
@@ -2806,6 +2914,65 @@ function renderTeacher() {
 }
 
 function editUnit(id) { state.currentUnitId = id; state.view = 'teacher-edit'; render(); }
+
+/* =========================================================
+   공용 단원 — 관리자가 발행하고 교사·학생이 함께 본다
+   ========================================================= */
+
+function isPublished(unit) {
+  return (state.sharedUnits || []).some(s => s.id === sharedIdOf(unit.id));
+}
+
+// 내 단원을 공용 목록에 복사한다. 원본은 그대로 내 것으로 남는다.
+// 원본을 고친 뒤 다시 누르면 공용본이 갱신된다
+async function publishUnit(unit) {
+  const copy = JSON.parse(JSON.stringify(unit));
+  copy.id = sharedIdOf(unit.id);
+  copy.shared = true;
+  const next = (state.sharedUnits || []).filter(s => s.id !== copy.id).concat([copy]);
+  try {
+    await fbSaveSharedCurriculum(next);
+    state.sharedUnits = next;
+    toast(`"${unit.title}" 공용 단원으로 발행했습니다`, 'success');
+    render();
+  } catch (e) {
+    toastSaveError('공용 단원 발행', e);
+  }
+}
+
+async function unpublishUnit(unit) {
+  const sharedId = isSharedUnit(unit) ? unit.id : sharedIdOf(unit.id);
+  const ok = await showConfirm('발행 취소',
+    `"${unit.title}"을(를) 공용 목록에서 내립니다.\n\n다른 교사와 학생 화면에서 사라집니다.\n학생들이 쌓은 진도 기록 자체는 지워지지 않습니다.`, true);
+  if (!ok) return;
+  const next = (state.sharedUnits || []).filter(s => s.id !== sharedId);
+  try {
+    await fbSaveSharedCurriculum(next);
+    state.sharedUnits = next;
+    toast('공용 목록에서 내렸습니다', 'success');
+    render();
+  } catch (e) {
+    toastSaveError('발행 취소', e);
+  }
+}
+
+// 공용 단원을 내 단원으로 복사한다. 새 id를 받아 원본과 완전히 분리된다.
+// 이후 자유롭게 고칠 수 있고 관리자가 원본을 고쳐도 영향받지 않는다
+async function copySharedUnit(unit) {
+  const copy = JSON.parse(JSON.stringify(unit));
+  copy.id = Date.now();
+  copy.title = unit.title + ' (복사본)';
+  delete copy.shared;
+  state.units.push(copy);
+  try {
+    await persistAll(true);
+    toast('내 단원으로 복사했습니다', 'success');
+    render();
+  } catch (e) {
+    state.units = state.units.filter(u => u.id !== copy.id);
+    toastSaveError('단원 복사', e);
+  }
+}
 async function deleteUnit(id) {
   const unit = state.units.find(u => u.id === id);
   const ok = await showConfirm('단원 삭제', `"${unit ? unit.title : '이 단원'}"을 정말 삭제하시겠습니까?\n\n포함된 모든 어휘, 문법, 퀴즈가 함께 삭제됩니다`, true);
@@ -3326,7 +3493,7 @@ function calcUnitProgress(bestScores, unit) {
 
 function calcOverallProgress(bestScores) {
   let done = 0, total = 0;
-  state.units.forEach(unit => {
+  allUnits().forEach(unit => {
     const p = calcUnitProgress(bestScores, unit);
     if (p) { done += p.done; total += p.total; }
   });
@@ -3387,7 +3554,7 @@ function renderTeacherProgress() {
   
   const unitSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   unitSpan.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px; color:var(--primary);' }));
-  unitSpan.appendChild(document.createTextNode(`단원 ${state.units.length}개`));
+  unitSpan.appendChild(document.createTextNode(`단원 ${allUnits().length}개`));
   summary.appendChild(unitSpan);
   
   const refreshBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-left:auto; display:inline-flex; align-items:center; gap:4px', onClick: () => { _progressCache = null; render(); } });
@@ -3420,9 +3587,9 @@ function renderTeacherProgress() {
     overallRow.appendChild(el('div', { style: 'font-weight:700; font-size:0.95rem; min-width:40px; text-align:right' }, `${overallPct}%`));
     card.appendChild(overallRow);
 
-    if (state.units.length > 0) {
+    if (allUnits().length > 0) {
       const grid = el('div', { style: 'display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:8px' });
-      state.units.forEach(unit => {
+      allUnits().forEach(unit => {
         const p = calcUnitProgress(stats.bestScores, unit);
         const pct = p ? p.pct : 0;
         const label = unit.title.replace(/^\d+(?:단원|단)?\s*[-·]\s*/, '') || unit.title;
@@ -4187,11 +4354,13 @@ function renderStudent() {
   const lang = getLangInfo();
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, `현재 언어: ${lang.flag} ${lang.name} · 변경하려면 상단 ${lang.code.toUpperCase()} 버튼 클릭`));
 
-  if (state.units.length === 0) {
+  // 관리자 공용 단원 + 담당 교사 단원을 함께 보여준다
+  const visibleUnits = allUnits();
+  if (visibleUnits.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
     // 난이도별로 묶어 보여준다. 번호는 난이도 안에서 다시 1부터 센다
-    groupUnitsByLevel(state.units).forEach(g => {
+    groupUnitsByLevel(visibleUnits).forEach(g => {
       const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 10px' });
       head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:18px; height:18px; color:${g.level.color};` }));
       head.appendChild(el('span', { style: `font-weight:800; font-size:1.05rem; color:${g.level.color}` }, g.level.name));
@@ -4298,7 +4467,7 @@ function renderStudent() {
 }
 
 function renderStudentUnit() {
-  const unit = state.units.find(u => u.id === state.currentUnitId);
+  const unit = allUnits().find(u => u.id === state.currentUnitId);
   if (!unit) { state.view = 'student'; render(); return el('div'); }
   if (!unit.quizzes) unit.quizzes = [];
   const root = el('div');
@@ -4404,7 +4573,7 @@ function startActivity(activity) {
    GAMES GAMEPLAY ENGINE
    ========================================================= */
 function initGame(activity) {
-  const unit = state.units.find(u => u.id === state.currentUnitId);
+  const unit = allUnits().find(u => u.id === state.currentUnitId);
   state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0 };
   const g = state.game;
 
@@ -5227,6 +5396,7 @@ async function fbSignOut() {
   state.role = null;
   state.students = [];
   state.loadError = null;
+  state.sharedUnits = [];
   masterState.teachers = [];
   state.view = 'login';
   render();
@@ -5312,6 +5482,24 @@ async function fbSaveCurriculum(teacherId, data) {
   return db.collection('curricula').doc(teacherId).set(data, { merge: true });
 }
 
+/* ===== 공용 단원 =====
+   관리자가 발행한 단원. 모든 교사와 학생이 읽고 관리자만 쓴다.
+   문서 하나에 모으는 이유는 curricula와 같다. 읽기 1회로 전부 가져온다 */
+
+const SHARED_CURRICULUM_DOC = 'main';
+
+async function fbGetSharedCurriculum() {
+  const doc = await db.collection('sharedCurriculum').doc(SHARED_CURRICULUM_DOC).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function fbSaveSharedCurriculum(units) {
+  return db.collection('sharedCurriculum').doc(SHARED_CURRICULUM_DOC).set({
+    units,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
 /* ===== TEACHERS ===== */
 
 async function fbGetTeacher(uid) {
@@ -5383,6 +5571,9 @@ async function onStudentLogin(studentDoc) {
   // 학생의 언어 선택은 교사 설정과 별개라 이 기기에만 둔다
   state.language = localStorage.getItem('student_language') || 'en';
 
+  // 관리자 공용 단원도 학생 화면에 나와야 한다
+  await loadSharedUnits();
+
   try {
     const curriculum = await fbGetCurriculum(studentDoc.teacherId);
     state.units = (curriculum && Array.isArray(curriculum.units)) ? curriculum.units : [];
@@ -5451,6 +5642,7 @@ async function onAuthLogin(fbUser) {
   try {
     // 단원은 교사 계정에 붙어 있으므로 로그인이 끝난 뒤에 읽는다
     await loadTeacherData(teacher);
+    await loadSharedUnits();
 
     if (teacher.isAdmin) {
       // 교사 전체 조회는 관리자만 수행한다 (보안 규칙에서도 관리자만 허용)
@@ -5531,6 +5723,7 @@ async function onAuthLogin(fbUser) {
         state.students = [];
         state.loadError = null;
         state.units = [];
+        state.sharedUnits = [];
         masterState.teachers = [];
         state.view = 'login';
       }

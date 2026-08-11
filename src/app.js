@@ -44,6 +44,7 @@
         state.students = [];
         state.loadError = null;
         state.units = [];
+        state.sharedUnits = [];
         masterState.teachers = [];
         state.view = 'login';
       }

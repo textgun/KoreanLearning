@@ -92,11 +92,13 @@ function renderStudent() {
   const lang = getLangInfo();
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, `현재 언어: ${lang.flag} ${lang.name} · 변경하려면 상단 ${lang.code.toUpperCase()} 버튼 클릭`));
 
-  if (state.units.length === 0) {
+  // 관리자 공용 단원 + 담당 교사 단원을 함께 보여준다
+  const visibleUnits = allUnits();
+  if (visibleUnits.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
     // 난이도별로 묶어 보여준다. 번호는 난이도 안에서 다시 1부터 센다
-    groupUnitsByLevel(state.units).forEach(g => {
+    groupUnitsByLevel(visibleUnits).forEach(g => {
       const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 10px' });
       head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:18px; height:18px; color:${g.level.color};` }));
       head.appendChild(el('span', { style: `font-weight:800; font-size:1.05rem; color:${g.level.color}` }, g.level.name));
@@ -203,7 +205,7 @@ function renderStudent() {
 }
 
 function renderStudentUnit() {
-  const unit = state.units.find(u => u.id === state.currentUnitId);
+  const unit = allUnits().find(u => u.id === state.currentUnitId);
   if (!unit) { state.view = 'student'; render(); return el('div'); }
   if (!unit.quizzes) unit.quizzes = [];
   const root = el('div');
@@ -309,7 +311,7 @@ function startActivity(activity) {
    GAMES GAMEPLAY ENGINE
    ========================================================= */
 function initGame(activity) {
-  const unit = state.units.find(u => u.id === state.currentUnitId);
+  const unit = allUnits().find(u => u.id === state.currentUnitId);
   state.game = { activity, unit, score: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, index: 0, total: 0 };
   const g = state.game;
 

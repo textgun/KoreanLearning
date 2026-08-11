@@ -29,6 +29,22 @@ function toast(msg, type = '') {
 function getLangInfo() { return LANGS.find(l => l.code === state.language) || LANGS[0]; }
 
 // 단원을 난이도 순서대로 묶는다. 단원이 없는 난이도는 결과에서 제외한다.
+// 공용 단원 id는 원본 id에 접두어를 붙여 고정한다.
+// 진도 기록이 `${unitId}_${activity}` 키라 id가 바뀌면 학생 진도가 초기화된다
+const SHARED_UNIT_PREFIX = 'shared_';
+function sharedIdOf(unitId) { return SHARED_UNIT_PREFIX + unitId; }
+function isSharedUnit(unit) { return !!unit && String(unit.id).startsWith(SHARED_UNIT_PREFIX); }
+
+// 화면에 보여줄 전체 단원. 공용 단원이 앞, 내 단원이 뒤다.
+// state.units에 절대 합치지 않는다. 합치면 _doSaveTeacher가 state.units를
+// 통째로 쓰기 때문에 공용 단원 전체가 교사 문서로 복사된다
+function allUnits() {
+  const shared = state.sharedUnits || [];
+  // 발행한 관리자에게는 원본과 공용본이 둘 다 잡힌다. 원본만 남긴다
+  const publishedFromMine = new Set(state.units.map(u => sharedIdOf(u.id)));
+  return [...shared.filter(u => !publishedFromMine.has(u.id)), ...state.units];
+}
+
 // level이 없거나 아는 값이 아니면 기초로 본다.
 // 모르는 값을 그냥 두면 어느 그룹에도 안 들어가 단원이 화면에서 사라진다
 function groupUnitsByLevel(units) {

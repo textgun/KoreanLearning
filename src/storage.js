@@ -29,13 +29,48 @@ async function _withRetry(fn, attempts = 3) {
   throw lastErr;
 }
 
+// 이 세션이 서버에 있다고 알고 있는 단원 id.
+// "내가 지운 단원"과 "다른 기기가 새로 만든 단원"을 구분하는 유일한 근거다
+let _baselineUnitIds = new Set();
+function _rememberUnits(units) { _baselineUnitIds = new Set((units || []).map(u => u.id)); }
+
+// 저장 직전 서버를 다시 읽어 단원 id 기준으로 합친다.
+// 배열을 통째로 덮어쓰면, 로그인 이후 다른 기기에서 만든 단원이 조용히 사라진다.
+// 두 기기가 같은 시각에 저장할 필요도 없다. 이쪽 메모리는 로그인 순간에
+// 멈춰 있고 실시간 구독이 없기 때문이다
+async function _mergeWithServer(uid) {
+  let remote;
+  try {
+    remote = await fbGetCurriculum(uid);
+  } catch (e) {
+    // 읽지 못하면 병합을 포기한다. 저장 자체를 막지는 않는다
+    console.warn('Merge read failed:', e);
+    return state.units;
+  }
+  if (!remote || !Array.isArray(remote.units)) return state.units;
+
+  const mine = new Set(state.units.map(u => u.id));
+  // 내 목록에 없으면서 세션 시작 시점에도 없던 단원 = 다른 기기가 만든 것.
+  // 세션 시작 시점에 있었다면 내가 지운 것이므로 되살리지 않는다
+  const foreign = remote.units.filter(u => !mine.has(u.id) && !_baselineUnitIds.has(u.id));
+  return foreign.length ? [...state.units, ...foreign] : state.units;
+}
+
 async function _doSaveTeacher() {
   // 단원은 교사 계정에 속한다. 로그인 전이거나 학생 세션이면 저장할 곳이 없다
   const uid = state.currentUser && state.currentUser.uid;
   if (!uid || state.role !== 'teacher' || _savingTeacher) return;
   _savingTeacher = true;
   try {
-    await _withRetry(() => fbSaveCurriculum(uid, { units: state.units, language: state.language }), 3);
+    const merged = await _mergeWithServer(uid);
+    await _withRetry(() => fbSaveCurriculum(uid, { units: merged, language: state.language }), 3);
+    if (merged !== state.units) {
+      const added = merged.length - state.units.length;
+      state.units = merged;
+      // 여기서 render()를 부르면 편집 중 입력 포커스가 날아간다. 다음 그리기에 반영된다
+      toast(`다른 기기에서 만든 단원 ${added}개를 함께 반영했습니다`, 'accent');
+    }
+    _rememberUnits(merged);
     if (!_storageOK) { _storageOK = true; toast('저장 복구됨', 'success'); }
     return true;
   } catch (e) {
@@ -99,6 +134,17 @@ async function _readLocalUnits() {
   return null;
 }
 
+// 관리자가 발행한 공용 단원을 읽는다. 실패해도 개인 단원 학습은 계속돼야 한다
+async function loadSharedUnits() {
+  try {
+    const shared = await fbGetSharedCurriculum();
+    state.sharedUnits = (shared && Array.isArray(shared.units)) ? shared.units : [];
+  } catch (e) {
+    console.warn('Shared units load failed:', e);
+    state.sharedUnits = [];
+  }
+}
+
 // 로그인한 교사의 단원과 설정을 읽는다. 단원은 curricula/{teacherId}에 있다.
 // 교사 문서에는 연락처·주소가 함께 들어 있어 학생에게 열 수 없기 때문에 분리했다.
 // 플래그를 두지 않고 "있으면 그걸 쓴다"로 판단해 몇 번 실행돼도 안전하다
@@ -111,6 +157,7 @@ async function loadTeacherData(teacher) {
     // 지운 단원이 로그인할 때마다 되살아난다
     state.units = curriculum.units;
     state.language = curriculum.language || 'en';
+    _rememberUnits(state.units);
     return;
   }
 

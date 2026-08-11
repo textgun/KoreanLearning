@@ -32,6 +32,7 @@ async function fbSignOut() {
   state.role = null;
   state.students = [];
   state.loadError = null;
+  state.sharedUnits = [];
   masterState.teachers = [];
   state.view = 'login';
   render();
@@ -117,6 +118,24 @@ async function fbSaveCurriculum(teacherId, data) {
   return db.collection('curricula').doc(teacherId).set(data, { merge: true });
 }
 
+/* ===== 공용 단원 =====
+   관리자가 발행한 단원. 모든 교사와 학생이 읽고 관리자만 쓴다.
+   문서 하나에 모으는 이유는 curricula와 같다. 읽기 1회로 전부 가져온다 */
+
+const SHARED_CURRICULUM_DOC = 'main';
+
+async function fbGetSharedCurriculum() {
+  const doc = await db.collection('sharedCurriculum').doc(SHARED_CURRICULUM_DOC).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function fbSaveSharedCurriculum(units) {
+  return db.collection('sharedCurriculum').doc(SHARED_CURRICULUM_DOC).set({
+    units,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
 /* ===== TEACHERS ===== */
 
 async function fbGetTeacher(uid) {
@@ -188,6 +207,9 @@ async function onStudentLogin(studentDoc) {
   // 학생의 언어 선택은 교사 설정과 별개라 이 기기에만 둔다
   state.language = localStorage.getItem('student_language') || 'en';
 
+  // 관리자 공용 단원도 학생 화면에 나와야 한다
+  await loadSharedUnits();
+
   try {
     const curriculum = await fbGetCurriculum(studentDoc.teacherId);
     state.units = (curriculum && Array.isArray(curriculum.units)) ? curriculum.units : [];
@@ -256,6 +278,7 @@ async function onAuthLogin(fbUser) {
   try {
     // 단원은 교사 계정에 붙어 있으므로 로그인이 끝난 뒤에 읽는다
     await loadTeacherData(teacher);
+    await loadSharedUnits();
 
     if (teacher.isAdmin) {
       // 교사 전체 조회는 관리자만 수행한다 (보안 규칙에서도 관리자만 허용)

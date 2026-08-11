@@ -5,7 +5,8 @@ let state = {
   view: 'login',
   language: 'en',
   students: [],
-  units: [],
+  units: [],                 // 내 단원. 저장 대상
+  sharedUnits: [],           // 관리자가 발행한 공용 단원. 읽기 전용, 절대 저장하지 않는다
   currentUnitId: null,
   currentActivity: null,
   role: null,                // 'teacher' | 'student' — 원격 접속 학생과 교사를 구분

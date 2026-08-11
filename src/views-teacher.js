@@ -349,14 +349,42 @@ function renderTeacher() {
   
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, 'PDF 업로드 또는 직접 입력으로 단원을 만들고 편집할 수 있습니다.'));
 
-  if (state.units.length === 0) {
+  const visibleUnits = allUnits();
+  if (visibleUnits.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '아직 단원이 없습니다.'));
   } else {
+    const isAdmin = !!(state.currentUser && state.currentUser.isAdmin);
+
     const makeUnitItem = (u) => {
       const item = el('div', { class: 'unit-item' });
       const info = el('div');
-      info.appendChild(el('h4', {}, u.title));
+      const shared = isSharedUnit(u);
+
+      const h = el('h4', { style: 'display:flex; align-items:center; gap:6px; flex-wrap:wrap' });
+      h.appendChild(document.createTextNode(u.title));
+      if (shared) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#5b21b6; background:#ede9fe; border-radius:20px; padding:2px 8px' }, '공용'));
+      else if (isAdmin && isPublished(u)) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#065f46; background:#d1fae5; border-radius:20px; padding:2px 8px' }, '발행됨'));
+      info.appendChild(h);
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
+
+      // 공용 단원은 관리자 문서에 있다. 교사가 편집하면 자기 문서에만 반영되는
+      // 유령 수정이 되므로 편집·삭제를 아예 주지 않는다
+      if (shared) {
+        const actions = el('div', { class: 'unit-actions' });
+        if (!isTraining) {
+          const copyBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => copySharedUnit(u) });
+          copyBtn.appendChild(el('i', { 'data-lucide': 'copy', style: 'width:13px; height:13px;' }));
+          copyBtn.appendChild(document.createTextNode('내 단원으로 복사'));
+          actions.appendChild(copyBtn);
+        }
+        if (isAdmin) {
+          const downBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => unpublishUnit(u) });
+          downBtn.appendChild(document.createTextNode('발행 취소'));
+          actions.appendChild(downBtn);
+        }
+        item.append(info, actions);
+        return item;
+      }
 
       if (!isTraining) {
         const actions = el('div', { class: 'unit-actions' });
@@ -365,6 +393,22 @@ function renderTeacher() {
         editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
         editBtn.appendChild(document.createTextNode('편집'));
         actions.appendChild(editBtn);
+
+        // 발행은 관리자만 한다. 발행 후 원본을 고치면 '발행 갱신'을 다시 눌러야
+        // 교사·학생에게 반영된다. 자동 동기화는 쓰기 횟수만 늘린다
+        if (isAdmin) {
+          const published = isPublished(u);
+          const pubBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#5b21b6', onClick: () => publishUnit(u) });
+          pubBtn.appendChild(el('i', { 'data-lucide': 'share-2', style: 'width:13px; height:13px;' }));
+          pubBtn.appendChild(document.createTextNode(published ? '발행 갱신' : '공용으로 발행'));
+          actions.appendChild(pubBtn);
+
+          if (published) {
+            const downBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#b91c1c', onClick: () => unpublishUnit(u) });
+            downBtn.appendChild(document.createTextNode('발행 취소'));
+            actions.appendChild(downBtn);
+          }
+        }
 
         const delBtn = el('button', { class: 'btn btn-danger btn-sm', style: 'display:inline-flex; align-items:center;', onClick: () => deleteUnit(u.id) });
         delBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:13px; height:13px; color:#fff;' }));
@@ -381,7 +425,7 @@ function renderTeacher() {
     };
 
     // 난이도별로 묶어 표시한다. 단원이 없는 난이도는 나오지 않는다
-    groupUnitsByLevel(state.units).forEach(g => {
+    groupUnitsByLevel(visibleUnits).forEach(g => {
       const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 8px' });
       head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:17px; height:17px; color:${g.level.color};` }));
       head.appendChild(el('span', { style: `font-weight:800; font-size:1rem; color:${g.level.color}` }, g.level.name));
@@ -503,6 +547,65 @@ function renderTeacher() {
 }
 
 function editUnit(id) { state.currentUnitId = id; state.view = 'teacher-edit'; render(); }
+
+/* =========================================================
+   공용 단원 — 관리자가 발행하고 교사·학생이 함께 본다
+   ========================================================= */
+
+function isPublished(unit) {
+  return (state.sharedUnits || []).some(s => s.id === sharedIdOf(unit.id));
+}
+
+// 내 단원을 공용 목록에 복사한다. 원본은 그대로 내 것으로 남는다.
+// 원본을 고친 뒤 다시 누르면 공용본이 갱신된다
+async function publishUnit(unit) {
+  const copy = JSON.parse(JSON.stringify(unit));
+  copy.id = sharedIdOf(unit.id);
+  copy.shared = true;
+  const next = (state.sharedUnits || []).filter(s => s.id !== copy.id).concat([copy]);
+  try {
+    await fbSaveSharedCurriculum(next);
+    state.sharedUnits = next;
+    toast(`"${unit.title}" 공용 단원으로 발행했습니다`, 'success');
+    render();
+  } catch (e) {
+    toastSaveError('공용 단원 발행', e);
+  }
+}
+
+async function unpublishUnit(unit) {
+  const sharedId = isSharedUnit(unit) ? unit.id : sharedIdOf(unit.id);
+  const ok = await showConfirm('발행 취소',
+    `"${unit.title}"을(를) 공용 목록에서 내립니다.\n\n다른 교사와 학생 화면에서 사라집니다.\n학생들이 쌓은 진도 기록 자체는 지워지지 않습니다.`, true);
+  if (!ok) return;
+  const next = (state.sharedUnits || []).filter(s => s.id !== sharedId);
+  try {
+    await fbSaveSharedCurriculum(next);
+    state.sharedUnits = next;
+    toast('공용 목록에서 내렸습니다', 'success');
+    render();
+  } catch (e) {
+    toastSaveError('발행 취소', e);
+  }
+}
+
+// 공용 단원을 내 단원으로 복사한다. 새 id를 받아 원본과 완전히 분리된다.
+// 이후 자유롭게 고칠 수 있고 관리자가 원본을 고쳐도 영향받지 않는다
+async function copySharedUnit(unit) {
+  const copy = JSON.parse(JSON.stringify(unit));
+  copy.id = Date.now();
+  copy.title = unit.title + ' (복사본)';
+  delete copy.shared;
+  state.units.push(copy);
+  try {
+    await persistAll(true);
+    toast('내 단원으로 복사했습니다', 'success');
+    render();
+  } catch (e) {
+    state.units = state.units.filter(u => u.id !== copy.id);
+    toastSaveError('단원 복사', e);
+  }
+}
 async function deleteUnit(id) {
   const unit = state.units.find(u => u.id === id);
   const ok = await showConfirm('단원 삭제', `"${unit ? unit.title : '이 단원'}"을 정말 삭제하시겠습니까?\n\n포함된 모든 어휘, 문법, 퀴즈가 함께 삭제됩니다`, true);
@@ -1023,7 +1126,7 @@ function calcUnitProgress(bestScores, unit) {
 
 function calcOverallProgress(bestScores) {
   let done = 0, total = 0;
-  state.units.forEach(unit => {
+  allUnits().forEach(unit => {
     const p = calcUnitProgress(bestScores, unit);
     if (p) { done += p.done; total += p.total; }
   });
@@ -1084,7 +1187,7 @@ function renderTeacherProgress() {
   
   const unitSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   unitSpan.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px; color:var(--primary);' }));
-  unitSpan.appendChild(document.createTextNode(`단원 ${state.units.length}개`));
+  unitSpan.appendChild(document.createTextNode(`단원 ${allUnits().length}개`));
   summary.appendChild(unitSpan);
   
   const refreshBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-left:auto; display:inline-flex; align-items:center; gap:4px', onClick: () => { _progressCache = null; render(); } });
@@ -1117,9 +1220,9 @@ function renderTeacherProgress() {
     overallRow.appendChild(el('div', { style: 'font-weight:700; font-size:0.95rem; min-width:40px; text-align:right' }, `${overallPct}%`));
     card.appendChild(overallRow);
 
-    if (state.units.length > 0) {
+    if (allUnits().length > 0) {
       const grid = el('div', { style: 'display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:8px' });
-      state.units.forEach(unit => {
+      allUnits().forEach(unit => {
         const p = calcUnitProgress(stats.bestScores, unit);
         const pct = p ? p.pct : 0;
         const label = unit.title.replace(/^\d+(?:단원|단)?\s*[-·]\s*/, '') || unit.title;

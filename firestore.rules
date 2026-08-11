@@ -12,6 +12,7 @@
 //   curricula/{teacherId}   단원과 언어 설정. 담당 학생도 읽는다
 //   students/{sid}          명단과 학습 기록. 학생은 본인 stats만 쓴다
 //   studentIndex/{authUid}  authUid → 학생·교사 연결. 규칙이 내부적으로 참조한다
+//   sharedCurriculum/main   관리자가 발행한 공용 단원. 모두 읽고 관리자만 쓴다
 //
 // 단원을 교사 문서에서 떼어낸 이유.
 //   Firestore 규칙은 필드 단위로 막을 수 없다. 학생이 단원을 읽으려고
@@ -112,6 +113,13 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && (isAdmin() || resource.data.teacherId == request.auth.uid);
+    }
+
+    // 관리자가 발행한 공용 단원. 교재 내용일 뿐 개인정보가 없어
+    // 로그인한 사람 모두에게 연다. 쓰기는 관리자만
+    match /sharedCurriculum/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // 원격 접속 연결 정보. 학생 코드가 들어 있어 학생끼리 볼 수 없다
