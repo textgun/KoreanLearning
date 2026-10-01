@@ -9,3 +9,7 @@ find_*.py
 *_debug.txt
 suspicious.txt
 quote_counts.txt
+node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

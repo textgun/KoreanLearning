@@ -1,0 +1,15 @@
+{
+  "name": "korean-learning",
+  "private": true,
+  "description": "한국어 학습 웹앱의 테스트 도구. 앱 자체는 build.py로 빌드한다",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-korean-learning \"node --test tests/*.test.mjs\"",
+    "test:client": "node --test tests/client.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.32.1",
+    "jsdom": "^30.1.1"
+  }
+}
