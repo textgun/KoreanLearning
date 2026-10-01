@@ -581,7 +581,15 @@ function renderMatchingGame() {
     const isSelected = g.selected.includes(c);
     const cls = 'match-card' + (isMatched ? ' matched' : '') + (isSelected ? ' selected' : '');
     const tile = el('div', { class: cls, onClick: () => selectMatchCard(c) });
-    tile.innerHTML = c.type === 'ko' ? `<div><div style="font-size:1.4rem">${c.emoji}</div><div style="margin-top:4px">${c.text}</div></div>` : c.text;
+    // 교재 문자열은 텍스트 노드로만 넣는다. innerHTML에 넣으면 저장된 단원에 섞인 HTML이 실행된다
+    if (c.type === 'ko') {
+      tile.appendChild(el('div', {}, [
+        el('div', { style: 'font-size:1.4rem' }, c.emoji || ''),
+        el('div', { style: 'margin-top:4px' }, c.text)
+      ]));
+    } else {
+      tile.textContent = c.text;
+    }
     grid.appendChild(tile);
   });
   root.appendChild(grid);
