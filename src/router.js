@@ -35,6 +35,12 @@ function render() {
     v = 'login';
   }
 
+  // 승인 대기 교사는 대기 화면 말고 갈 곳이 없다. 다른 화면은 규칙이 데이터를 막아 빈 화면만 나온다
+  if (state.currentUser && state.currentUser.approved === false && !authViews.includes(v)) {
+    state.view = 'teacher-pending';
+    v = 'teacher-pending';
+  }
+
   // 학생이 학습 중일 때는 교사·관리자 화면으로 넘어갈 수 없다.
   // 화면 진입을 여기 한 곳에서 막아야 버튼을 숨기는 것만으로는 남는 경로가 사라진다.
   // 원격 접속 학생(role === 'student')도 같은 관문에 걸린다
@@ -49,6 +55,7 @@ function render() {
   const map = {
     'loading': renderLoadingPage,
     'login': renderLoginPage, 'signup': renderSignupPage, 'forgot-password': renderForgotPassword,
+    'teacher-pending': renderTeacherPending,
     'home': renderHome, 'teacher': renderTeacher, 'teacher-create': renderTeacherCreate,
     'teacher-edit': renderTeacherEdit, 'teacher-progress': renderTeacherProgress,
     'admin': renderAdmin, 'admin-teacher': renderAdminTeacherDetail,
@@ -72,7 +79,8 @@ function renderTopbar() {
   const inStudentMode = !!state.currentStudent;
 
   // 학생 모드의 홈은 단원 목록이다. 교사 화면으로 빠지지 않는다
-  const atTop = state.view === 'home' || (inStudentMode && state.view === 'student');
+  // 승인 대기 화면도 맨 위다. 홈 버튼을 주면 눌러도 대기 화면으로 되돌아온다
+  const atTop = state.view === 'home' || state.view === 'teacher-pending' || (inStudentMode && state.view === 'student');
   if (!authViews.includes(state.view) && !atTop) {
     statsRow.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: inStudentMode ? goStudentHome : goHome }, [
       el('i', { 'data-lucide': 'home', style: 'width:16px; height:16px; display:block;' })

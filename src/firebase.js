@@ -147,10 +147,14 @@ async function fbSaveTeacher(uid, data) {
   return db.collection('teachers').doc(uid).set(data, { merge: true });
 }
 
+// 교사 문서와 학생 명단, 원격 접속 연결을 함께 지운다.
+// 인증 계정은 서버 없이 지울 수 없지만, 다시 로그인하면 승인 대기 문서로 새로 시작해 권한이 돌아오지 않는다
 async function fbDeleteTeacherDoc(uid) {
   const students = await fbGetStudents(uid);
+  const links = await db.collection('studentIndex').where('teacherId', '==', uid).get();
   const batch = db.batch();
   students.forEach(s => batch.delete(db.collection('students').doc(s.firestoreId)));
+  links.docs.forEach(d => batch.delete(d.ref));
   batch.delete(db.collection('teachers').doc(uid));
   return batch.commit();
 }
@@ -187,8 +191,13 @@ async function fbUpdateStudent(firestoreId, data) {
   return db.collection('students').doc(firestoreId).set(data, { merge: true });
 }
 
-async function fbDeleteStudent(firestoreId) {
-  return db.collection('students').doc(firestoreId).delete();
+// 원격 접속 연결도 함께 지운다. 규칙이 학생 문서를 다시 확인하므로 연결이 남아도 접근은 막히지만,
+// 지운 학생을 가리키는 연결 문서를 남기지 않는다
+async function fbDeleteStudent(firestoreId, authUid) {
+  const batch = db.batch();
+  batch.delete(db.collection('students').doc(firestoreId));
+  if (authUid) batch.delete(db.collection('studentIndex').doc(authUid));
+  return batch.commit();
 }
 
 /* ===== 로그인 후 상태 로드 ===== */
@@ -243,7 +252,8 @@ async function onAuthLogin(fbUser) {
 
     // Firestore 문서가 없으면 자동 생성 (Race Condition 복구)
     // auth.signOut()을 호출하면 onAuthStateChanged 중복 실행 버그 발생 → 제거
-    // 관리자 권한은 절대 클라이언트에서 부여하지 않는다 (Firebase 콘솔에서만 설정)
+    // 관리자 권한과 승인은 절대 클라이언트에서 부여하지 않는다 (규칙이 approved == false를 강제한다).
+    // 관리자가 삭제한 교사가 다시 로그인해도 이 경로로 승인 대기부터 시작한다
     if (!teacher) {
       await fbSaveTeacher(fbUser.uid, {
         name: fbUser.email.split('@')[0],
@@ -252,6 +262,7 @@ async function onAuthLogin(fbUser) {
         status: 'teaching',
         note: '',
         isAdmin: false,
+        approved: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       teacher = await fbGetTeacher(fbUser.uid);
@@ -268,6 +279,13 @@ async function onAuthLogin(fbUser) {
   }
 
   state.currentUser = { uid: fbUser.uid, email: fbUser.email, ...teacher };
+
+  // 승인 대기. 규칙이 단원·명단을 모두 막으므로 읽으려 하지 않고 대기 화면만 띄운다
+  if (teacher.approved === false) {
+    state.currentTeacher = null;
+    state.view = 'teacher-pending';
+    return;
+  }
 
   // 단원·명단 로드보다 먼저 교사 컨텍스트를 세운다. 이 순서가 뒤집히면
   // 뒤쪽 조회가 하나라도 실패했을 때 currentTeacher가 null로 남는데,

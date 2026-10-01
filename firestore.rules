@@ -2,17 +2,24 @@
 //
 // ⚠️ 이 파일은 저장소에 있을 뿐 자동 적용되지 않는다.
 //    Firebase 콘솔 → Firestore Database → 규칙 탭에 붙여넣고 '게시'해야 반영된다.
+//    게시 전에 `npm test`로 에뮬레이터 규칙 테스트를 돌린다 (tests/rules.test.mjs).
 //
 // ⚠️ 관리자 계정 만드는 법.
 //    이 규칙은 클라이언트가 isAdmin을 스스로 true로 바꾸는 것을 막는다.
 //    첫 관리자는 콘솔에서 teachers/{uid} 문서의 isAdmin을 직접 true로 설정한다.
+//    승인 제도 이후 가입한 계정이면 approved도 true로 함께 바꿔야 한다.
+//
+// ⚠️ 교사 승인.
+//    새 교사 문서는 approved == false로만 만들 수 있고, 관리자가 true로 바꿔야 교사 권한이 생긴다.
+//    approved 필드가 없는 문서는 승인 제도 이전 가입자라 승인된 것으로 본다.
+//    관리자가 교사를 삭제해도 인증 계정은 남지만, 다시 로그인하면 승인 대기 문서로 새로 시작한다.
 //
 // 컬렉션 구조
-//   teachers/{uid}          이름·연락처·주소. 교사 본인과 관리자만
+//   teachers/{uid}          이름·연락처·주소·승인 여부. 교사 본인과 관리자만
 //   curricula/{teacherId}   단원과 언어 설정. 담당 학생도 읽는다
 //   students/{sid}          명단과 학습 기록. 학생은 본인 stats만 쓴다
 //   studentIndex/{authUid}  authUid → 학생·교사 연결. 규칙이 내부적으로 참조한다
-//   sharedCurriculum/main   관리자가 발행한 공용 단원. 모두 읽고 관리자만 쓴다
+//   sharedCurriculum/main   관리자가 발행한 공용 단원. 승인된 교사와 학생이 읽고 관리자만 쓴다
 //
 // 단원을 교사 문서에서 떼어낸 이유.
 //   Firestore 규칙은 필드 단위로 막을 수 없다. 학생이 단원을 읽으려고
@@ -27,98 +34,132 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function teacherPath(uid) {
+      return /databases/$(database)/documents/teachers/$(uid);
+    }
+
+    function studentPath(sid) {
+      return /databases/$(database)/documents/students/$(sid);
+    }
+
+    function indexPath(authUid) {
+      return /databases/$(database)/documents/studentIndex/$(authUid);
+    }
+
+    // 승인된 교사. 승인 대기 중인 가입자는 자기 교사 문서 말고는 아무것도 못 본다
     function isTeacher() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+        && exists(teacherPath(request.auth.uid))
+        && get(teacherPath(request.auth.uid)).data.get('approved', true) == true;
     }
 
     function isAdmin() {
       return isTeacher()
-        && get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.isAdmin == true;
+        && get(teacherPath(request.auth.uid)).data.get('isAdmin', false) == true;
     }
 
-    function isStudent() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/studentIndex/$(request.auth.uid));
+    // 학생 원격 접속 계정. 코드를 합성 이메일로 바꿔 쓴다 (firebase.js의 STUDENT_EMAIL_DOMAIN)
+    function isStudentAccount() {
+      return request.auth.token.get('email', '').matches('^s-[a-z0-9]+@student[.]korean-learning[.]app$');
     }
 
     // 규칙 안의 get()은 읽기 권한 검사를 거치지 않는다.
     // 그래서 학생이 이 문서를 직접 읽지 못해도 규칙은 참조할 수 있다
     function studentLink() {
-      return get(/databases/$(database)/documents/studentIndex/$(request.auth.uid)).data;
+      return get(indexPath(request.auth.uid)).data;
+    }
+
+    // 연결 문서만 믿지 않는다. 학생 문서가 지금도 같은 인증 계정과 같은 교사를 가리켜야 한다.
+    // 학생을 삭제하거나 코드를 재발급하면 이 확인이 실패해 이전 접속이 바로 끊긴다
+    function isStudent() {
+      return isSignedIn()
+        && exists(indexPath(request.auth.uid))
+        && exists(studentPath(studentLink().studentId))
+        && get(studentPath(studentLink().studentId)).data.get('authUid', null) == request.auth.uid
+        && get(studentPath(studentLink().studentId)).data.teacherId == studentLink().teacherId;
+    }
+
+    // 학생 문서의 authUid는 그 계정의 연결 문서가 이 학생과 요청한 교사를 가리킬 때만 바꿀 수 있다.
+    // 원격 발급은 연결 문서를 먼저 만들고 학생 문서를 고치는 순서라 이 조건을 만족한다
+    function authUidChangeAllowed(sid) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['authUid'])
+        || (exists(indexPath(request.resource.data.authUid))
+            && get(indexPath(request.resource.data.authUid)).data.studentId == sid
+            && get(indexPath(request.resource.data.authUid)).data.teacherId == request.auth.uid);
     }
 
     // 교사 개인정보. 학생에게는 절대 열지 않는다
     match /teachers/{uid} {
+      // 승인 대기 중인 본인도 자기 문서는 읽어야 대기 화면을 띄울 수 있다
       allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
 
+      // 새 가입자는 승인 대기로 시작한다. 학생 원격 접속 계정은 교사가 될 수 없다
       allow create: if isSignedIn()
         && request.auth.uid == uid
-        && request.resource.data.isAdmin == false;
+        && !isStudentAccount()
+        && request.resource.data.isAdmin == false
+        && request.resource.data.approved == false;
 
+      // 본인은 연락처와 옛 단원 필드 정리만 할 수 있다.
+      // 권한(isAdmin·approved), 상태(status), 관리자 메모(note)는 관리자만 바꾼다
       allow update: if isAdmin()
         || (isSignedIn()
             && request.auth.uid == uid
-            && request.resource.data.isAdmin == resource.data.isAdmin);
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['name', 'phone', 'address', 'units', 'language']));
 
       allow delete: if isAdmin();
     }
 
     // 단원. 담당 학생이 읽을 수 있어야 원격 학습이 된다
     match /curricula/{teacherId} {
-      allow get: if isSignedIn() && (
-           request.auth.uid == teacherId
-        || isAdmin()
-        || (isStudent() && studentLink().teacherId == teacherId)
-      );
+      allow get: if isAdmin()
+        || (isTeacher() && request.auth.uid == teacherId)
+        || (isStudent() && studentLink().teacherId == teacherId);
       allow list: if isAdmin();
 
       // 쓰기는 담당 교사와 관리자만. 학생은 단원을 고칠 수 없다
-      allow create, update: if isSignedIn() && (request.auth.uid == teacherId || isAdmin());
+      allow create, update: if isAdmin() || (isTeacher() && request.auth.uid == teacherId);
       allow delete: if isAdmin();
     }
 
     match /students/{sid} {
-      allow get: if isSignedIn() && (
-           isAdmin()
-        || resource.data.teacherId == request.auth.uid
-        || (isStudent() && studentLink().studentId == sid)
-      );
+      allow get: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid)
+        || (isStudent() && studentLink().studentId == sid);
 
       // 목록 조회는 세 가지 질의만 허용한다.
       //   교사   where('teacherId','==', 본인uid)
       //   학생   where('authUid','==', 본인uid)      → 자기 문서 찾기
       //   학생   where('teacherId','==', 담당교사)    → 리더보드
-      allow list: if isSignedIn() && (
-           isAdmin()
-        || resource.data.teacherId == request.auth.uid
-        || resource.data.authUid == request.auth.uid
-        || (isStudent() && studentLink().teacherId == resource.data.teacherId)
-      );
+      allow list: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid)
+        || (isSignedIn() && resource.data.authUid == request.auth.uid)
+        || (isStudent() && studentLink().teacherId == resource.data.teacherId);
 
-      allow create: if isSignedIn()
-        && (isAdmin() || request.resource.data.teacherId == request.auth.uid);
+      // 새 학생은 원격 접속 없이 만든다. 연결은 발급 절차로만 붙는다
+      allow create: if (isAdmin() || (isTeacher() && request.resource.data.teacherId == request.auth.uid))
+        && request.resource.data.get('authUid', null) == null;
 
-      allow update: if isSignedIn() && (
-           isAdmin()
-        // 담당 교사. 다른 교사에게 넘기는 것은 막는다
-        || (resource.data.teacherId == request.auth.uid
-            && request.resource.data.teacherId == resource.data.teacherId)
+      allow update: if isAdmin()
+        // 담당 교사. 다른 교사에게 넘기는 것과 연결 없는 authUid 지정은 막는다
+        || (isTeacher()
+            && resource.data.teacherId == request.auth.uid
+            && request.resource.data.teacherId == resource.data.teacherId
+            && authUidChangeAllowed(sid))
         // 학생 본인. 학습 기록만 고칠 수 있다
         || (isStudent()
             && studentLink().studentId == sid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats']))
-      );
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats']));
 
-      allow delete: if isSignedIn()
-        && (isAdmin() || resource.data.teacherId == request.auth.uid);
+      allow delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
     }
 
-    // 관리자가 발행한 공용 단원. 교재 내용일 뿐 개인정보가 없어
-    // 로그인한 사람 모두에게 연다. 쓰기는 관리자만
+    // 관리자가 발행한 공용 단원. 개인정보는 없지만 승인 대기 가입자에게는 열지 않는다
     match /sharedCurriculum/{docId} {
-      allow read: if isSignedIn();
+      allow read: if isTeacher() || isStudent();
       allow write: if isAdmin();
     }
 
@@ -127,11 +168,21 @@ service cloud.firestore {
       allow get, list: if isAdmin()
         || (isTeacher() && resource.data.teacherId == request.auth.uid);
 
+      // 연결 대상 학생이 실제로 요청한 교사 소속이어야 한다.
+      // 교사 계정을 학생으로 연결하면 그 교사가 학생 화면에 갇히므로 막는다
       allow create: if isTeacher()
-        && request.resource.data.teacherId == request.auth.uid;
+        && request.resource.data.keys().hasOnly(['studentId', 'teacherId', 'code'])
+        && request.resource.data.teacherId == request.auth.uid
+        && exists(studentPath(request.resource.data.studentId))
+        && get(studentPath(request.resource.data.studentId)).data.teacherId == request.auth.uid
+        && !exists(teacherPath(authUid));
 
-      allow update, delete: if isAdmin()
-        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+      // 연결은 고치지 않는다. 재발급은 새 인증 계정으로 새 문서를 만든다
+      allow update: if false;
+
+      // 학생 삭제와 함께 일괄로 지운다. 이미 없는 연결을 지우는 요청이 일괄 처리를 깨지 않게 둔다
+      allow delete: if isAdmin()
+        || (isTeacher() && (resource == null || resource.data.teacherId == request.auth.uid));
     }
 
     // 그 외 경로는 전부 차단

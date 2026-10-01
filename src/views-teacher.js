@@ -180,9 +180,10 @@ function renderSignupPage() {
       // isAdmin은 항상 false. 관리자 승격은 Firebase 콘솔에서만 가능하다
       // (이전에는 '첫 가입자 = 관리자'였으나, 신규 배포판을 먼저 발견한
       //  아무나 관리자가 될 수 있어 제거했다)
+      // approved도 항상 false. 관리자가 승인해야 교사 권한이 생긴다
       await fbSaveTeacher(uid, {
         name, phone, email, address: addrIn.value.trim(),
-        status: 'teaching', note: '', isAdmin: false,
+        status: 'teaching', note: '', isAdmin: false, approved: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
@@ -193,7 +194,7 @@ function renderSignupPage() {
       render();
       await onAuthLogin(cred.user);
       render();
-      toast('✅ 가입 완료! 환영합니다.', 'success');
+      toast('✅ 가입 완료. 관리자 승인 후 이용할 수 있습니다.', 'success');
     } catch (e) {
       window._signingUp = false;
       const msg = e.code === 'auth/email-already-in-use' ? '이미 사용 중인 이메일입니다' : '가입 실패: ' + e.message;
@@ -243,6 +244,20 @@ function renderForgotPassword() {
   }}, '재설정 이메일 보내기');
   panel.appendChild(sendBtn);
 
+  root.appendChild(panel);
+  return root;
+}
+
+/* ---------- 승인 대기 ---------- */
+// 가입했지만 관리자가 아직 승인하지 않은 교사의 화면. 승인 여부는 로그인 때 판정하므로 새로고침으로 다시 확인한다
+function renderTeacherPending() {
+  const root = el('div', { style: 'max-width:440px; margin:60px auto' });
+  const panel = el('div', { class: 'panel', style: 'text-align:center' });
+  panel.appendChild(el('i', { 'data-lucide': 'hourglass', style: 'width:44px; height:44px; color:var(--primary); display:block; margin:0 auto 14px' }));
+  panel.appendChild(el('h2', { style: 'margin-bottom:10px' }, '관리자 승인 대기 중'));
+  panel.appendChild(el('p', { class: 'text-muted', style: 'line-height:1.7; margin-bottom:18px; white-space:pre-line' },
+    '가입이 완료되었습니다.\n관리자가 승인하면 단원과 학생 관리를 시작할 수 있습니다.'));
+  panel.appendChild(el('button', { class: 'btn btn-primary btn-block', onClick: () => location.reload() }, '승인 확인 (새로고침)'));
   root.appendChild(panel);
   return root;
 }
@@ -485,7 +500,7 @@ function renderTeacher() {
           const ok = await showConfirm('학생 삭제', `"${s.name}" 학생을 정말 삭제하시겠습니까?`, true);
           if (!ok) return;
           try {
-            if (s.firestoreId) await fbDeleteStudent(s.firestoreId);
+            if (s.firestoreId) await fbDeleteStudent(s.firestoreId, s.authUid);
           } catch (err) {
             // 실패했는데 명단에서 먼저 빼면 지워진 것처럼 보이다가
             // 새로고침하면 학생이 되살아난다
@@ -1288,8 +1303,10 @@ function renderAdmin() {
   panel.appendChild(head);
   panel.appendChild(el('button', { class: 'back-btn', style: 'margin-top:8px', onClick: () => { state.view = 'home'; render(); }}, '← 홈'));
 
-  const teaching = masterState.teachers.filter(t => t.status === 'teaching').length;
-  const training = masterState.teachers.filter(t => t.status === 'training').length;
+  // 승인 대기 교사는 아직 수업 상태가 의미 없으므로 따로 센다
+  const pending = masterState.teachers.filter(t => t.approved === false).length;
+  const teaching = masterState.teachers.filter(t => t.approved !== false && t.status === 'teaching').length;
+  const training = masterState.teachers.filter(t => t.approved !== false && t.status === 'training').length;
   const totalStudents = masterState.teachers.reduce((s, t) => s + (t.students || []).length, 0);
 
   const summary = el('div', { style: 'display:flex; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin:16px 0; align-items:center;' });
@@ -1308,6 +1325,13 @@ function renderAdmin() {
   trainingSpan.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px; color:#d97706;' }));
   trainingSpan.appendChild(document.createTextNode(`교육중 ${training}명`));
   summary.appendChild(trainingSpan);
+
+  if (pending > 0) {
+    const pendingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:700; color:#b91c1c' });
+    pendingSpan.appendChild(el('i', { 'data-lucide': 'hourglass', style: 'width:15px; height:15px; color:#b91c1c;' }));
+    pendingSpan.appendChild(document.createTextNode(`승인 대기 ${pending}명`));
+    summary.appendChild(pendingSpan);
+  }
   
   const sCountSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   sCountSpan.appendChild(el('i', { 'data-lucide': 'graduation-cap', style: 'width:15px; height:15px; color:var(--primary);' }));
@@ -1329,7 +1353,11 @@ function renderAdmin() {
       hdr.appendChild(tNameDiv);
       
       const sc = teacher.status === 'teaching';
-      hdr.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:600` }, sc ? '🟢 수업중' : '🟡 교육중'));
+      if (teacher.approved === false) {
+        hdr.appendChild(el('div', { style: 'background:#fee2e2; color:#b91c1c; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:700' }, '⏳ 승인 대기'));
+      } else {
+        hdr.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:600` }, sc ? '🟢 수업중' : '🟡 교육중'));
+      }
       card.appendChild(hdr);
       
       const meta = el('div', { style: 'font-size:0.88rem; color:#64748b; display:flex; gap:16px; flex-wrap:wrap; align-items:center;' });
@@ -1379,6 +1407,13 @@ function renderAdminTeacherDetail() {
   
   const headBtns = el('div', { style: 'display:flex; gap:8px' });
   
+  if (teacher.approved === false) {
+    const approveBtn = el('button', { class: 'btn btn-primary btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => approveTeacher(teacher) });
+    approveBtn.appendChild(el('i', { 'data-lucide': 'user-check', style: 'width:13px; height:13px; color:#fff;' }));
+    approveBtn.appendChild(document.createTextNode('승인'));
+    headBtns.appendChild(approveBtn);
+  }
+
   const editBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showTeacherModal(teacher) });
   editBtn.appendChild(el('i', { 'data-lucide': 'edit-2', style: 'width:13px; height:13px;' }));
   editBtn.appendChild(document.createTextNode('수정'));
@@ -1478,7 +1513,7 @@ function renderAdminTeacherDetail() {
       const ok = await showConfirm('학생 삭제', `"${student.name}" 학생을 삭제하시겠습니까?`, true);
       if (!ok) return;
       try {
-        if (student.firestoreId) await fbDeleteStudent(student.firestoreId);
+        if (student.firestoreId) await fbDeleteStudent(student.firestoreId, student.authUid);
       } catch (err) {
         toastSaveError('학생 삭제', err);
         return;
@@ -1883,10 +1918,29 @@ function showEditStudentModal(teacher, student, idx) {
 
 async function deleteTeacher(id) {
   const teacher = masterState.teachers.find(t => t.id === id);
-  const ok = await showConfirm('교사 삭제', `"${teacher?.name}" 교사를 삭제하시겠습니까?\n\n학생 명단도 함께 삭제됩니다.`, true);
+  const ok = await showConfirm('교사 삭제', `"${teacher?.name}" 교사를 삭제하시겠습니까?\n\n학생 명단과 원격 접속 코드도 함께 삭제됩니다.\n다시 로그인해도 관리자가 승인하기 전에는 이용할 수 없습니다.`, true);
   if (!ok) return;
+  try {
+    await fbDeleteTeacherDoc(id);
+  } catch (e) {
+    // 실패했는데 목록에서 먼저 빼면 지워진 것처럼 보이다가 새로고침하면 되살아난다
+    toastSaveError('교사 삭제', e);
+    return;
+  }
   masterState.teachers = masterState.teachers.filter(t => t.id !== id);
-  await fbDeleteTeacherDoc(id);
   state.view = 'admin';
+  render();
+}
+
+// 승인 대기 교사를 승인한다. 교사는 대기 화면에서 새로고침하거나 다시 로그인하면 쓸 수 있다
+async function approveTeacher(teacher) {
+  try {
+    await fbSaveTeacher(teacher.id, { approved: true });
+  } catch (e) {
+    toastSaveError('교사 승인', e);
+    return;
+  }
+  teacher.approved = true;
+  toast(`${teacher.name} 교사를 승인했습니다`, 'success');
   render();
 }
