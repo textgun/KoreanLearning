@@ -201,6 +201,31 @@ describe('교사 공개 프로필 (서비스 확장 1단계)', () => {
     assert.equal(root.innerHTML, '');
   });
 
+  test('홈에는 공개된 프로필만 보이고, 교사가 쓴 글은 텍스트로 들어간다', async () => {
+    const db = makeFakeDb({
+      'teacherProfiles/tA': { displayName: '하늘쌤', intro: '<img src=x onerror="window.__pwned=1">', languages: ['vi'], levels: ['basic'], availability: '평일 저녁', experience: '', listed: true },
+      'teacherProfiles/tB': { displayName: '숨은쌤', intro: '', languages: [], levels: [], availability: '', experience: '' }
+    });
+    const w = loadApp(db);
+    w.eval(`state.currentUser = { uid: 'tA', name: 'A' }; state.currentTeacher = { id: 'tA', students: [] }; state.view = 'home'; render();`);
+    const app = w.document.getElementById('app');
+    assert.ok(app.textContent.includes('불러오는 중'));
+    await new Promise(r => setTimeout(r, 0));
+    assert.ok(app.textContent.includes('하늘쌤'));
+    assert.ok(app.textContent.includes('Tiếng Việt'));
+    assert.ok(!app.textContent.includes('숨은쌤'));
+    assert.ok(app.textContent.includes('<img src=x'));
+    assert.equal(app.querySelectorAll('.directory-card img').length, 0);
+    assert.equal(w.__pwned, undefined);
+  });
+
+  test('공개된 선생님이 없으면 안내 문구를 보여 준다', async () => {
+    const w = loadApp(makeFakeDb());
+    w.eval(`state.currentUser = { uid: 'tA', name: 'A' }; state.currentTeacher = { id: 'tA', students: [] }; state.view = 'home'; render();`);
+    await new Promise(r => setTimeout(r, 0));
+    assert.ok(w.document.getElementById('app').textContent.includes('아직 공개된 선생님이 없습니다'));
+  });
+
   test('관리자 상세는 교사가 쓴 글을 HTML로 해석하지 않는다', () => {
     const w = loadApp(makeFakeDb());
     w.eval(`_adminProfileCache = { id: 'tA', profile: {
