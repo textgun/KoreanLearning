@@ -156,12 +156,37 @@ async function fbDeleteTeacherDoc(uid) {
   students.forEach(s => batch.delete(db.collection('students').doc(s.firestoreId)));
   links.docs.forEach(d => batch.delete(d.ref));
   batch.delete(db.collection('teachers').doc(uid));
+  // 남겨 두면 삭제된 교사가 공개 교사 목록에 계속 보인다
+  batch.delete(db.collection('teacherProfiles').doc(uid));
   return batch.commit();
 }
 
 async function fbGetAllTeachers() {
   const snap = await db.collection('teachers').get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* ===== 교사 공개 프로필 =====
+   가입자에게 보이는 정보만 둔다. 실명·연락처·주소는 teachers 문서에만 있고 여기로 복사하지 않는다.
+   공개 여부(listed)는 관리자만 바꾼다. 문서에 listed가 없으면 비공개다 */
+
+// 규칙의 허용 필드와 같다. 교사 객체를 통째로 넘겨도 연락처가 새지 않게 여기서 한 번 더 고른다
+const TEACHER_PROFILE_FIELDS = ['displayName', 'intro', 'languages', 'levels', 'availability', 'experience'];
+
+async function fbGetTeacherProfile(uid) {
+  const doc = await db.collection('teacherProfiles').doc(uid).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function fbSaveTeacherProfile(uid, profile) {
+  const data = {};
+  TEACHER_PROFILE_FIELDS.forEach(k => { data[k] = profile[k]; });
+  data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  return db.collection('teacherProfiles').doc(uid).set(data, { merge: true });
+}
+
+async function fbSetTeacherProfileListed(uid, listed) {
+  return db.collection('teacherProfiles').doc(uid).set({ listed }, { merge: true });
 }
 
 /* ===== STUDENTS ===== */

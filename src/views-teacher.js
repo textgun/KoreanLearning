@@ -339,6 +339,11 @@ function renderTeacher() {
   progressBtn.appendChild(document.createTextNode('진도 현황'));
   headBtns.appendChild(progressBtn);
 
+  const profileBtn = el('button', { class: 'btn btn-ghost', style: 'display:flex; align-items:center; gap:6px', onClick: showTeacherProfileModal });
+  profileBtn.appendChild(el('i', { 'data-lucide': 'id-card', style: 'width:16px; height:16px;' }));
+  profileBtn.appendChild(document.createTextNode('공개 프로필'));
+  headBtns.appendChild(profileBtn);
+
   if (!isTraining) {
     const addStuBtn = el('button', { class: 'btn btn-accent btn-sm', style: 'display:inline-flex; align-items:center; gap:4px', onClick: () => showAddStudentModal(state.currentTeacher) });
     addStuBtn.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:13px; height:13px; color:#fff;' }));
@@ -1271,6 +1276,7 @@ function renderTeacherProgress() {
    ADMINISTRATOR ACTIONS
    ========================================================= */
 let _adminProgressCache = null;
+let _adminProfileCache = null;   // { id, profile, error } — 교사 상세에서 본 공개 프로필
 
 function renderAdmin() {
   const root = el('div');
@@ -1344,7 +1350,7 @@ function renderAdmin() {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '등록된 교사가 없습니다. + 교사 추가 버튼으로 시작하세요.'));
   } else {
     masterState.teachers.forEach(teacher => {
-      const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer', onClick: () => { state.adminTeacherId = teacher.id; _adminProgressCache = null; state.view = 'admin-teacher'; render(); }});
+      const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer', onClick: () => { state.adminTeacherId = teacher.id; _adminProgressCache = null; _adminProfileCache = null; state.view = 'admin-teacher'; render(); }});
       const hdr = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:8px' });
       
       const tNameDiv = el('div', { style: 'font-weight:700; font-size:1.05rem; flex:1; display:flex; align-items:center; gap:6px' });
@@ -1444,6 +1450,7 @@ function renderAdminTeacherDetail() {
     info.appendChild(noteDiv);
   }
   panel.appendChild(info);
+  panel.appendChild(renderAdminProfileSection(teacher));
 
   const stuHead = el('div', { class: 'row-between', style: 'margin-bottom:12px' });
   
@@ -1943,4 +1950,183 @@ async function approveTeacher(teacher) {
   teacher.approved = true;
   toast(`${teacher.name} 교사를 승인했습니다`, 'success');
   render();
+}
+
+/* =========================================================
+   교사 공개 프로필
+   ========================================================= */
+
+const EMPTY_TEACHER_PROFILE = { displayName: '', intro: '', languages: [], levels: [], availability: '', experience: '' };
+
+// 체크박스 묶음과, 선택된 코드 배열을 돌려주는 함수를 함께 만든다
+function makeCodeCheckboxes(options, selected) {
+  const wrap = el('div', { style: 'display:flex; flex-wrap:wrap; gap:6px 14px; margin-bottom:12px' });
+  const boxes = options.map(o => {
+    const cb = el('input', { type: 'checkbox', value: o.code });
+    cb.checked = selected.includes(o.code);
+    wrap.appendChild(el('label', { style: 'display:inline-flex; align-items:center; gap:5px; font-size:0.9rem; cursor:pointer' }, [cb, o.label]));
+    return cb;
+  });
+  return { node: wrap, values: () => boxes.filter(b => b.checked).map(b => b.value) };
+}
+
+// 가입자에게 보이는 프로필을 쓴다. 공개 여부는 관리자가 정하므로 여기서는 내용만 고친다
+async function showTeacherProfileModal() {
+  const uid = state.currentTeacher && state.currentTeacher.id;
+  if (!uid) {
+    toast('교사 정보를 불러오지 못했습니다. 새로고침 후 다시 로그인하세요.', 'danger');
+    return;
+  }
+  let saved;
+  try {
+    saved = await fbGetTeacherProfile(uid);
+  } catch (err) {
+    toastSaveError('프로필 불러오기', err);
+    return;
+  }
+  const p = { ...EMPTY_TEACHER_PROFILE, ...(saved || {}) };
+
+  const root = $('#modal-root');
+  root.innerHTML = '';
+  const backdrop = el('div', { class: 'modal-backdrop' });
+  const modal = el('div', { class: 'modal', style: 'max-width:520px; max-height:90vh; overflow-y:auto' });
+  modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, '🪪 공개 프로필'));
+
+  const listed = !!(saved && saved.listed);
+  modal.appendChild(el('div', { style: `font-size:0.85rem; font-weight:700; margin-bottom:8px; color:${listed ? '#065f46' : '#475569'}` },
+    listed ? '공개 중 — 가입한 사용자에게 보입니다' : '비공개 — 관리자가 확인한 뒤 공개합니다'));
+  modal.appendChild(el('p', { style: 'color:#92400e; background:#fef3c7; border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:14px; line-height:1.5' },
+    '가입한 사용자라면 누구나 볼 수 있습니다. 전화번호, 이메일, 주소, 실명은 넣지 마세요.'));
+
+  const field = (label, input) => { modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label)); modal.appendChild(input); };
+
+  const nameIn = el('input', { type: 'text', maxlength: '30', placeholder: '학생에게 보일 이름 (실명이 아니어도 됩니다)', style: 'margin-bottom:12px' });
+  nameIn.value = p.displayName;
+  field('표시 이름 *', nameIn);
+
+  const introIn = el('textarea', { maxlength: '1000', rows: '4', placeholder: '어떤 수업을 하는지 소개해 주세요', style: 'margin-bottom:12px' });
+  introIn.value = p.intro;
+  field('소개', introIn);
+
+  const langBoxes = makeCodeCheckboxes(LANGS.map(l => ({ code: l.code, label: `${l.flag} ${l.name}` })), p.languages);
+  field('설명할 수 있는 언어', langBoxes.node);
+
+  const levelBoxes = makeCodeCheckboxes(LEVELS.map(l => ({ code: l.code, label: l.name })), p.levels);
+  field('가르치는 수준', levelBoxes.node);
+
+  const availIn = el('input', { type: 'text', maxlength: '200', placeholder: '예: 평일 저녁 7~10시 (한국 시간)', style: 'margin-bottom:12px' });
+  availIn.value = p.availability;
+  field('수업 가능 시간대', availIn);
+
+  const expIn = el('textarea', { maxlength: '500', rows: '3', placeholder: '예: 한국어교원 2급, 어학당 3년', style: 'margin-bottom:16px' });
+  expIn.value = p.experience;
+  field('경력', expIn);
+
+  const collect = () => ({
+    displayName: nameIn.value.trim(), intro: introIn.value.trim(),
+    languages: langBoxes.values(), levels: levelBoxes.values(),
+    availability: availIn.value.trim(), experience: expIn.value.trim()
+  });
+  const initial = JSON.stringify(collect());
+
+  // 바깥을 잘못 눌러 고친 내용이 사라지지 않도록, 바뀐 게 있을 때만 확인을 받는다
+  let askingCancel = false;
+  backdrop.onclick = async (e) => {
+    if (e.target !== backdrop || askingCancel) return;
+    if (JSON.stringify(collect()) !== initial) {
+      askingCancel = true;
+      const ok = await confirmOverModal('프로필 작성 취소', '고친 내용이 사라집니다. 닫으시겠습니까?', '계속 작성', '닫기');
+      askingCancel = false;
+      if (!ok) return;
+    }
+    root.innerHTML = '';
+  };
+
+  const btns = el('div', { style: 'display:flex; gap:8px' });
+  const cancelBtn = el('button', { class: 'btn btn-ghost', style: 'flex:1', onClick: () => { root.innerHTML = ''; } }, '취소');
+  const saveBtn = el('button', { class: 'btn btn-primary', style: 'flex:1' }, '저장');
+  saveBtn.onclick = async () => {
+    const profile = collect();
+    if (!profile.displayName) { toast('표시 이름을 입력하세요', 'danger'); return; }
+    saveBtn.disabled = true; cancelBtn.disabled = true;
+    try {
+      await fbSaveTeacherProfile(uid, profile);
+      root.innerHTML = '';
+      toast('프로필을 저장했습니다', 'success');
+    } catch (err) {
+      toastSaveError('프로필 저장', err);
+      saveBtn.disabled = false; cancelBtn.disabled = false;
+    }
+  };
+  btns.append(cancelBtn, saveBtn);
+  modal.appendChild(btns);
+  backdrop.appendChild(modal);
+  root.appendChild(backdrop);
+  setTimeout(() => nameIn.focus(), 50);
+}
+
+// 관리자 교사 상세의 프로필 칸. 내용은 읽기만 하고 공개 여부만 바꾼다.
+// 프로필은 교사가 쓴 글이라 innerHTML 없이 텍스트 노드로만 넣는다
+function renderAdminProfileSection(teacher) {
+  const box = el('div', { style: 'border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:16px' });
+  const head = el('div', { class: 'row-between', style: 'gap:8px; flex-wrap:wrap; margin-bottom:8px' });
+  const title = el('h3', { style: 'margin:0; display:flex; align-items:center; gap:6px; font-size:1rem' });
+  title.appendChild(el('i', { 'data-lucide': 'id-card', style: 'width:16px; height:16px; color:var(--primary);' }));
+  title.appendChild(document.createTextNode('공개 프로필'));
+  head.appendChild(title);
+  box.appendChild(head);
+
+  if (!_adminProfileCache || _adminProfileCache.id !== teacher.id) {
+    box.appendChild(el('div', { class: 'text-muted', style: 'font-size:0.9rem' }, '불러오는 중...'));
+    const id = teacher.id;
+    fbGetTeacherProfile(id)
+      .then(profile => { _adminProfileCache = { id, profile }; })
+      .catch(err => { _adminProfileCache = { id, profile: null, error: firestoreErrorText(err) }; })
+      .then(() => render());
+    return box;
+  }
+
+  const { profile, error } = _adminProfileCache;
+  if (error) {
+    box.appendChild(el('div', { style: 'color:#991b1b; font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
+    return box;
+  }
+  if (!profile) {
+    box.appendChild(el('div', { class: 'text-muted', style: 'font-size:0.9rem' }, '아직 작성하지 않았습니다.'));
+    return box;
+  }
+
+  const listed = !!profile.listed;
+  const badge = el('span', { style: `font-size:0.75rem; font-weight:800; border-radius:20px; padding:2px 8px; background:${listed ? '#d1fae5' : '#f1f5f9'}; color:${listed ? '#065f46' : '#475569'}` }, listed ? '공개 중' : '비공개');
+  const toggleBtn = el('button', { class: listed ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm' }, listed ? '비공개로 전환' : '공개하기');
+  toggleBtn.onclick = async () => {
+    toggleBtn.disabled = true;
+    try {
+      await fbSetTeacherProfileListed(teacher.id, !listed);
+    } catch (err) {
+      toastSaveError('프로필 공개 전환', err);
+      toggleBtn.disabled = false;
+      return;
+    }
+    profile.listed = !listed;
+    render();
+    toast(listed ? '프로필을 비공개로 바꿨습니다' : '프로필을 공개했습니다', 'success');
+  };
+  head.appendChild(el('div', { style: 'display:flex; align-items:center; gap:8px' }, [badge, toggleBtn]));
+
+  const nameOf = (list, code, label) => { const x = list.find(i => i.code === code); return x ? label(x) : code; };
+  const row = (label, value) => {
+    if (!value) return;
+    const r = el('div', { style: 'font-size:0.9rem; line-height:1.6; margin-bottom:4px; white-space:pre-line' });
+    r.appendChild(el('span', { style: 'font-weight:600; color:#475569; margin-right:6px' }, label));
+    r.appendChild(document.createTextNode(value));
+    box.appendChild(r);
+  };
+  row('표시 이름', profile.displayName);
+  row('설명 언어', (profile.languages || []).map(c => nameOf(LANGS, c, l => `${l.flag} ${l.name}`)).join(', '));
+  row('수준', (profile.levels || []).map(c => nameOf(LEVELS, c, l => l.name)).join(', '));
+  row('시간대', profile.availability);
+  row('경력', profile.experience);
+  row('소개', profile.intro);
+  return box;
 }
