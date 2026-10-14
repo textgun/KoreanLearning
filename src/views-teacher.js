@@ -283,6 +283,7 @@ function renderHome() {
 
   grid.append(teacherCard, studentCard);
   root.appendChild(grid);
+  root.appendChild(renderTeacherDirectory());
 
   return root;
 }
@@ -1957,6 +1958,65 @@ async function approveTeacher(teacher) {
    ========================================================= */
 
 const EMPTY_TEACHER_PROFILE = { displayName: '', intro: '', languages: [], levels: [], availability: '', experience: '' };
+let _directoryCache = null;   // { profiles, error } — 홈의 선생님 소개 목록
+
+// 프로필의 언어·수준 코드를 화면용 이름으로 바꾼다. 모르는 코드는 그대로 보인다
+function profileLanguageText(profile) {
+  return (profile.languages || []).map(c => { const l = LANGS.find(x => x.code === c); return l ? `${l.flag} ${l.name}` : c; }).join(', ');
+}
+function profileLevelText(profile) {
+  return (profile.levels || []).map(c => { const l = LEVELS.find(x => x.code === c); return l ? l.name : c; }).join(', ');
+}
+
+// 홈의 선생님 소개. 관리자가 공개한 프로필만 보인다.
+// 교사가 쓴 글이라 innerHTML 없이 텍스트 노드로만 넣는다
+function renderTeacherDirectory() {
+  const panel = el('div', { class: 'panel', style: 'margin-top:16px' });
+  const title = el('h3', { style: 'display:flex; align-items:center; gap:8px' });
+  title.appendChild(el('i', { 'data-lucide': 'users', style: 'width:20px; height:20px;' }));
+  title.appendChild(document.createTextNode('선생님 소개'));
+  panel.appendChild(title);
+
+  if (!_directoryCache) {
+    panel.appendChild(el('p', { class: 'text-muted' }, '불러오는 중...'));
+    fbGetListedTeacherProfiles()
+      .then(profiles => { _directoryCache = { profiles }; })
+      .catch(err => { _directoryCache = { profiles: [], error: firestoreErrorText(err) }; })
+      // 다 읽기 전에 다른 화면으로 갔으면 그 화면을 다시 그리지 않는다
+      .then(() => { if (state.view === 'home') render(); });
+    return panel;
+  }
+
+  const { profiles, error } = _directoryCache;
+  if (error) {
+    panel.appendChild(el('p', { style: 'color:#991b1b; font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
+    return panel;
+  }
+  if (!profiles.length) {
+    panel.appendChild(el('p', { class: 'text-muted' }, '아직 공개된 선생님이 없습니다.'));
+    return panel;
+  }
+
+  const grid = el('div', { class: 'directory-grid' });
+  [...profiles].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')).forEach(p => {
+    const card = el('div', { class: 'directory-card' });
+    card.appendChild(el('h4', {}, p.displayName));
+    const langs = profileLanguageText(p);
+    if (langs) card.appendChild(el('div', { class: 'meta' }, `설명 언어 · ${langs}`));
+    const levels = profileLevelText(p);
+    if (levels) card.appendChild(el('div', { class: 'meta' }, `수준 · ${levels}`));
+    if (p.availability) card.appendChild(el('div', { class: 'meta' }, `시간대 · ${p.availability}`));
+    if (p.experience) card.appendChild(el('div', { class: 'meta' }, `경력 · ${p.experience}`));
+    if (p.intro) {
+      card.appendChild(el('p', { class: 'intro' }, p.intro));
+      // 긴 소개는 세 줄까지만 보이고, 누르면 펼친다
+      card.onclick = () => card.classList.toggle('open');
+    }
+    grid.appendChild(card);
+  });
+  panel.appendChild(grid);
+  return panel;
+}
 
 // 체크박스 묶음과, 선택된 코드 배열을 돌려주는 함수를 함께 만든다
 function makeCodeCheckboxes(options, selected) {
@@ -2051,6 +2111,7 @@ async function showTeacherProfileModal() {
     saveBtn.disabled = true; cancelBtn.disabled = true;
     try {
       await fbSaveTeacherProfile(uid, profile);
+      _directoryCache = null;
       root.innerHTML = '';
       toast('프로필을 저장했습니다', 'success');
     } catch (err) {
@@ -2109,12 +2170,12 @@ function renderAdminProfileSection(teacher) {
       return;
     }
     profile.listed = !listed;
+    _directoryCache = null;
     render();
     toast(listed ? '프로필을 비공개로 바꿨습니다' : '프로필을 공개했습니다', 'success');
   };
   head.appendChild(el('div', { style: 'display:flex; align-items:center; gap:8px' }, [badge, toggleBtn]));
 
-  const nameOf = (list, code, label) => { const x = list.find(i => i.code === code); return x ? label(x) : code; };
   const row = (label, value) => {
     if (!value) return;
     const r = el('div', { style: 'font-size:0.9rem; line-height:1.6; margin-bottom:4px; white-space:pre-line' });
@@ -2123,8 +2184,8 @@ function renderAdminProfileSection(teacher) {
     box.appendChild(r);
   };
   row('표시 이름', profile.displayName);
-  row('설명 언어', (profile.languages || []).map(c => nameOf(LANGS, c, l => `${l.flag} ${l.name}`)).join(', '));
-  row('수준', (profile.levels || []).map(c => nameOf(LEVELS, c, l => l.name)).join(', '));
+  row('설명 언어', profileLanguageText(profile));
+  row('수준', profileLevelText(profile));
   row('시간대', profile.availability);
   row('경력', profile.experience);
   row('소개', profile.intro);

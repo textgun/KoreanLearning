@@ -185,6 +185,12 @@ async function fbSaveTeacherProfile(uid, profile) {
   return db.collection('teacherProfiles').doc(uid).set(data, { merge: true });
 }
 
+// 공개된 프로필만 읽는다. 규칙이 listed 조건 없는 목록 질의를 거부한다
+async function fbGetListedTeacherProfiles() {
+  const snap = await db.collection('teacherProfiles').where('listed', '==', true).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 async function fbSetTeacherProfileListed(uid, listed) {
   return db.collection('teacherProfiles').doc(uid).set({ listed }, { merge: true });
 }
