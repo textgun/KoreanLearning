@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, test, before, after, beforeEach } from 'node:test';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import assert from 'node:assert/strict';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 const STUDENT_EMAIL = (code) => `s-${code}@student.korean-learning.app`;
 
@@ -207,5 +208,94 @@ describe('학생 접근과 회수 (1차 #2)', () => {
     batch.delete(doc(db, 'teachers/tA'));
     await assertSucceeds(batch.commit());
     await assertFails(getDoc(doc(student('uA1'), 'curricula/tA')));
+  });
+});
+
+describe('교사 공개 프로필 (서비스 확장 1단계)', () => {
+  const base = { displayName: '하늘쌤', intro: '안녕하세요', languages: ['en', 'vi'], levels: ['basic'], availability: '평일 저녁', experience: '어학당 3년' };
+  const profile = (extra = {}) => ({ ...base, updatedAt: serverTimestamp(), ...extra });
+  const anon = () => env.unauthenticatedContext().firestore();
+  const listedQuery = (db) => getDocs(query(collection(db, 'teacherProfiles'), where('listed', '==', true)));
+
+  // tA는 공개, tB는 listed 필드가 없는 비공개, tC는 프로필이 없는 승인 교사
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'teachers/tC'), { name: '새교사', isAdmin: false, approved: true, status: 'teaching' });
+      await setDoc(doc(db, 'teacherProfiles/tA'), { ...base, updatedAt: new Date(), listed: true });
+      await setDoc(doc(db, 'teacherProfiles/tB'), { ...base, updatedAt: new Date() });
+    });
+  });
+
+  test('승인 교사는 자기 프로필을 비공개로만 만든다', async () => {
+    const db = teacher('tC');
+    await assertFails(setDoc(doc(db, 'teacherProfiles/tC'), profile({ listed: true })));
+    await assertSucceeds(setDoc(doc(db, 'teacherProfiles/tC'), profile()));
+  });
+
+  test('승인 대기 교사, 학생, 다른 교사는 프로필을 쓸 수 없다', async () => {
+    await assertFails(setDoc(doc(teacher('tP'), 'teacherProfiles/tP'), profile()));
+    await assertFails(setDoc(doc(student('uA1'), 'teacherProfiles/uA1'), profile()));
+    await assertFails(setDoc(doc(teacher('tC'), 'teacherProfiles/tA'), profile(), { merge: true }));
+  });
+
+  test('연락처 같은 허용 밖 필드와 잘못된 값은 거부한다', async () => {
+    const db = teacher('tC');
+    const ref = doc(db, 'teacherProfiles/tC');
+    for (const extra of [{ phone: '010-1234-5678' }, { email: 'a@school.test' }, { address: '서울' }, { name: '홍길동' }]) {
+      await assertFails(setDoc(ref, profile(extra)));
+    }
+    await assertFails(setDoc(ref, profile({ languages: ['ko'] })));
+    await assertFails(setDoc(ref, profile({ levels: ['expert'] })));
+    await assertFails(setDoc(ref, profile({ displayName: '' })));
+    await assertFails(setDoc(ref, profile({ intro: 'x'.repeat(1001) })));
+    await assertFails(setDoc(ref, profile({ updatedAt: new Date(0) })));
+    await assertSucceeds(setDoc(ref, profile()));
+  });
+
+  test('교사는 공개 여부를 바꿀 수 없고, 내용을 고쳐도 공개 상태가 유지된다', async () => {
+    const dbA = teacher('tA');
+    await assertFails(setDoc(doc(dbA, 'teacherProfiles/tA'), profile({ listed: false }), { merge: true }));
+    await assertSucceeds(setDoc(doc(dbA, 'teacherProfiles/tA'), profile({ intro: '고친 소개' }), { merge: true }));
+    const after = await assertSucceeds(getDoc(doc(teacher('admin'), 'teacherProfiles/tA')));
+    assert.equal(after.data().listed, true);
+    await assertFails(setDoc(doc(teacher('tB'), 'teacherProfiles/tB'), profile({ listed: true }), { merge: true }));
+  });
+
+  test('관리자는 공개 여부만 바꾼다', async () => {
+    const db = teacher('admin');
+    await assertSucceeds(updateDoc(doc(db, 'teacherProfiles/tB'), { listed: true }));
+    await assertFails(updateDoc(doc(db, 'teacherProfiles/tB'), { intro: '관리자가 고침' }));
+    await assertFails(updateDoc(doc(db, 'teacherProfiles/tB'), { listed: 'yes' }));
+  });
+
+  test('가입자는 공개된 프로필만 읽고, 비로그인은 아무것도 못 읽는다', async () => {
+    const s = student('uA1');
+    await assertSucceeds(getDoc(doc(s, 'teacherProfiles/tA')));
+    await assertFails(getDoc(doc(s, 'teacherProfiles/tB')));
+    await assertSucceeds(getDoc(doc(teacher('tP'), 'teacherProfiles/tA')));
+    await assertSucceeds(getDoc(doc(teacher('tB'), 'teacherProfiles/tB')));
+    await assertSucceeds(getDoc(doc(teacher('admin'), 'teacherProfiles/tB')));
+    await assertFails(getDoc(doc(anon(), 'teacherProfiles/tA')));
+  });
+
+  test('목록은 공개 프로필 질의만 통과한다', async () => {
+    const s = student('uA1');
+    const snap = await assertSucceeds(listedQuery(s));
+    assert.deepEqual(snap.docs.map(d => d.id), ['tA']);
+    await assertFails(getDocs(collection(s, 'teacherProfiles')));
+    await assertFails(listedQuery(anon()));
+    await assertSucceeds(getDocs(collection(teacher('admin'), 'teacherProfiles')));
+  });
+
+  test('본인과 관리자만 지우고, 관리자는 교사와 프로필을 한 번에 지운다', async () => {
+    await assertFails(deleteDoc(doc(teacher('tC'), 'teacherProfiles/tA')));
+    await assertSucceeds(deleteDoc(doc(teacher('tB'), 'teacherProfiles/tB')));
+    const db = teacher('admin');
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'teachers/tA'));
+    batch.delete(doc(db, 'teacherProfiles/tA'));
+    batch.delete(doc(db, 'teacherProfiles/tNone'));
+    await assertSucceeds(batch.commit());
   });
 });

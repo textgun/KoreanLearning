@@ -102,7 +102,7 @@ describe('삭제 시 원격 접속 연결 정리 (1차 #2)', () => {
     assert.deepEqual(db.ops, ['delete students/s2']);
   });
 
-  test('교사를 지우면 그 반 학생과 고아 연결까지 지우고 다른 반은 건드리지 않는다', async () => {
+  test('교사를 지우면 그 반 학생과 고아 연결, 공개 프로필까지 지우고 다른 반은 건드리지 않는다', async () => {
     const db = makeFakeDb({
       'teachers/tA': { name: 'A' },
       'students/s1': { name: '민수', teacherId: 'tA', authUid: 'u1' },
@@ -116,7 +116,7 @@ describe('삭제 시 원격 접속 연결 정리 (1차 #2)', () => {
     await w.fbDeleteTeacherDoc('tA');
     assert.deepEqual([...db.ops].sort(), [
       'delete studentIndex/u1', 'delete studentIndex/uOld',
-      'delete students/s1', 'delete students/s2', 'delete teachers/tA'
+      'delete students/s1', 'delete students/s2', 'delete teacherProfiles/tA', 'delete teachers/tA'
     ]);
     assert.ok(db.store.has('students/s3') && db.store.has('studentIndex/u3'));
   });
@@ -163,5 +163,54 @@ describe('교사 승인 (2차 검토 N1)', () => {
     assert.equal(w.eval('state.view'), 'home');
     assert.equal(w.eval('state.units[0].title'), '내 단원');
     assert.equal(w.eval('state.currentTeacher.students.length'), 1);
+  });
+});
+
+describe('교사 공개 프로필 (서비스 확장 1단계)', () => {
+  test('저장할 때 허용 필드만 보내고 공개 여부는 보내지 않는다', async () => {
+    const db = makeFakeDb();
+    const w = loadApp(db);
+    await w.fbSaveTeacherProfile('tA', {
+      displayName: '하늘쌤', intro: '', languages: ['en'], levels: [], availability: '', experience: '',
+      name: '홍길동', phone: '010-1234-5678', email: 'a@school.test', address: '서울', listed: true
+    });
+    assert.deepEqual(Object.keys(db.store.get('teacherProfiles/tA')).sort(),
+      ['availability', 'displayName', 'experience', 'intro', 'languages', 'levels', 'updatedAt']);
+  });
+
+  test('모달에서 저장하면 입력한 내용만 저장되고 공개 상태는 그대로다', async () => {
+    const db = makeFakeDb({
+      'teacherProfiles/tA': { displayName: '옛이름', intro: '', languages: [], levels: [], availability: '', experience: '', listed: true }
+    });
+    const w = loadApp(db);
+    w.eval(`state.currentTeacher = { id: 'tA', name: '홍길동', phone: '010-1234-5678' };`);
+    await w.showTeacherProfileModal();
+    const root = w.document.getElementById('modal-root');
+    assert.ok(root.textContent.includes('공개 중'));
+    const nameIn = root.querySelector('input[type="text"]');
+    assert.equal(nameIn.value, '옛이름');
+    nameIn.value = '하늘쌤';
+    root.querySelector('input[type="checkbox"][value="vi"]').checked = true;
+    [...root.querySelectorAll('button')].find(b => b.textContent === '저장').click();
+    await new Promise(r => setTimeout(r, 0));
+    const saved = db.store.get('teacherProfiles/tA');
+    assert.equal(saved.displayName, '하늘쌤');
+    assert.deepEqual([...saved.languages], ['vi']);
+    assert.equal(saved.listed, true);
+    assert.equal(saved.phone, undefined);
+    assert.equal(root.innerHTML, '');
+  });
+
+  test('관리자 상세는 교사가 쓴 글을 HTML로 해석하지 않는다', () => {
+    const w = loadApp(makeFakeDb());
+    w.eval(`_adminProfileCache = { id: 'tA', profile: {
+      displayName: '<b>x</b>', intro: '<img src=x onerror="window.__pwned=1">',
+      languages: ['en'], levels: ['basic'], availability: '', experience: '', listed: false } };`);
+    const node = w.eval(`renderAdminProfileSection({ id: 'tA' })`);
+    w.document.body.appendChild(node);
+    assert.equal(node.querySelectorAll('img, b').length, 0);
+    assert.ok(node.textContent.includes('<img src=x'));
+    assert.ok(node.textContent.includes('공개하기'));
+    assert.equal(w.__pwned, undefined);
   });
 });
