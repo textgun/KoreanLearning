@@ -22,3 +22,6 @@
 - 접수 시스템은 여전히 미연결이다. 시안 대신 접수 준비 중으로 안내하며, 최종 동작은 제출이 아닌 작성 마치기다.
 
 - 공개용 문구 개정 후 신청 회귀 테스트·기존 클라이언트 테스트 및 임시 전체 빌드 통과. 시안/체험 노출 없음과 접수 준비 중 안내를 테스트에 추가했다.
+
+- 공개 배포 완료. d729b8486b947849d1c52dca9e7055ec6150cfb4, Actions 40872668063 completed/success.
+- https://textgun.github.io/KoreanLearning/teacher/apply.html 브라우저에서 공개 화면과 접수 준비 중 안내 확인. 캡처 application-public.png.
