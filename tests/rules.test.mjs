@@ -299,3 +299,20 @@ describe('교사 공개 프로필 (서비스 확장 1단계)', () => {
     await assertSucceeds(batch.commit());
   });
 });
+
+describe('강사 신청 개인정보 접근', () => {
+  test('본인과 관리자만 읽고 모든 클라이언트 직접 쓰기를 거부한다', async () => {
+    await env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'teacherApplications/tP'), { uid: 'tP', status: 'pending', name: '비공개' });
+    });
+    await assertSucceeds(getDoc(doc(teacher('tP'), 'teacherApplications/tP')));
+    await assertSucceeds(getDoc(doc(teacher('admin'), 'teacherApplications/tP')));
+    await assertFails(getDoc(doc(teacher('tA'), 'teacherApplications/tP')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'teacherApplications/tP')));
+    await assertFails(getDocs(collection(teacher('tP'), 'teacherApplications')));
+    await assertSucceeds(getDocs(collection(teacher('admin'), 'teacherApplications')));
+    await assertFails(setDoc(doc(teacher('tP'), 'teacherApplications/tP'), { status: 'approved' }));
+    await assertFails(updateDoc(doc(teacher('admin'), 'teacherApplications/tP'), { status: 'approved' }));
+    await assertFails(deleteDoc(doc(teacher('tP'), 'teacherApplications/tP')));
+  });
+});

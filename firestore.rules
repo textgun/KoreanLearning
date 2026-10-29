@@ -113,6 +113,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 신청 개인정보는 서버 API만 쓰며, 본인과 관리자만 읽을 수 있다.
+    match /teacherApplications/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
     // 단원. 담당 학생이 읽을 수 있어야 원격 학습이 된다
     match /curricula/{teacherId} {
       allow get: if isAdmin()
