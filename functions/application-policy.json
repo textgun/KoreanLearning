@@ -1,0 +1,10 @@
+{
+  "version": "2026-10-30",
+  "acceptingApplications": false,
+  "operatorName": "말이음 운영팀",
+  "contactEmail": "piction825@gmail.com",
+  "notificationEmail": "piction825@gmail.com",
+  "minimumAge": 18,
+  "pendingRetentionDays": 90,
+  "adminUrl": "https://textgun.github.io/KoreanLearning/teacher/admin.html"
+}
