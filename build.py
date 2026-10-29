@@ -4,6 +4,7 @@ from datetime import datetime
 import subprocess
 import sys
 import re
+import shutil
 
 SRC = Path("src")
 DIST = Path("dist")
@@ -94,6 +95,23 @@ def main():
     # 이 둘이 어긋나면 src/를 고쳐도 배포에 반영되지 않는 사고가 난다
     root_copy = Path("korean_learning_app.html")
     root_copy.write_text(output, encoding="utf-8")
+
+    # 교사용 랜딩페이지 시안을 독립된 /teacher/ 경로로 배포한다.
+    concept = Path("Concept")
+    teacher_dist = DIST / "teacher"
+    (teacher_dist / "charater").mkdir(parents=True, exist_ok=True)
+    for source, target in [
+        ("teacher-landing.html", "index.html"),
+        ("teacher-landing.css", "teacher-landing.css"),
+        ("teacher-landing.js", "teacher-landing.js"),
+    ]:
+        shutil.copy2(concept / source, teacher_dist / target)
+    for photo in [
+        "7c612a2bbebcbd73b882d6dd34dfbb82.jpg",
+        "119e4b33766815aadf682f06cfff73b6.jpg",
+        "f3744125a88d0ea0a9ee053987587382.jpg",
+    ]:
+        shutil.copy2(concept / "charater" / photo, teacher_dist / "charater" / photo)
 
     size_kb = out_path.stat().st_size / 1024
     print(f"[OK] 빌드 완료 ({size_kb:.1f} KB)")
