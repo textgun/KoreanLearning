@@ -112,6 +112,8 @@ def main():
         "7c612a2bbebcbd73b882d6dd34dfbb82.jpg",
         "119e4b33766815aadf682f06cfff73b6.jpg",
         "f3744125a88d0ea0a9ee053987587382.jpg",
+        "5f5fd7df9ab18585c053d4c47b453c10.jpg",
+        "bb648d51f917672343d5489b5bb430da.jpg",
     ]:
         shutil.copy2(concept / "charater" / photo, teacher_dist / "charater" / photo)
 
