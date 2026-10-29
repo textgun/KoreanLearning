@@ -1,0 +1,46 @@
+/* 말이음 랜딩페이지의 색상과 사진을 이어받은 반응형 강사 신청 화면. */
+[hidden]{display:none!important}
+.apply-layout{display:grid;grid-template-columns:.85fr 1.15fr;gap:80px;padding:40px 0 80px;align-items:start}
+.apply-story{padding-top:25px}
+.apply-story h1{font-size:clamp(38px,3.9vw,54px);line-height:1.4;letter-spacing:-2.8px}
+.apply-story .intro{font-size:14px}
+.story-photo{position:relative;width:280px;height:285px;margin:38px 0 25px}
+.story-photo img{height:100%;width:100%;object-fit:cover;border-radius:140px 140px 24px 24px;transform:rotate(-4deg)}
+.story-hello{position:absolute;top:15px;right:-40px;background:#fffaf0;border:1px solid var(--line);padding:13px 16px;border-radius:16px 16px 16px 0;font-size:13px;transform:rotate(7deg)}
+.story-hello span{color:var(--green);padding-left:8px}
+.story-sticker{position:absolute;bottom:4px;right:-25px;width:87px;height:87px;background:var(--yellow);border-radius:50%;display:grid;place-content:center;text-align:center;transform:rotate(12deg);font-size:17px;font-weight:800;line-height:1.4}
+.story-caption{font-size:11px;color:var(--muted);margin-top:30px}
+.application-card{background:#fffcf7;border:1px solid var(--line);border-radius:26px;padding:36px;box-shadow:0 15px 45px #39251f04;min-width:0}
+.form-topline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.form-category{font-size:13px;font-weight:700}
+.demo-badge{background:#e5ece1;color:#406448;border-radius:20px;padding:6px 10px;font-size:10px;white-space:nowrap}
+.form-progress{padding:25px 0;margin:0;list-style:none;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
+.form-progress li{font-size:11px;color:#91867a;display:flex;align-items:center;gap:7px}
+.form-progress li>span{width:25px;height:25px;border-radius:50%;background:#f0ece4;display:grid;place-items:center;font-size:10px}
+.form-progress li[aria-current]{font-weight:700;color:var(--ink)}
+.form-progress li[aria-current]>span{background:var(--yellow)}
+.form-progress li.passed>span{background:#dce8dc;color:var(--green)}
+.demo-note{display:flex;align-items:center;gap:12px;margin:20px 0 32px;background:#f1f3e9;border-radius:12px;padding:12px 14px;color:#57664d}
+.demo-note>span{font-size:24px}.demo-note p{margin:0;font-size:11px;line-height:1.7}
+.form-step .eyebrow{font-size:9px;margin-bottom:12px;letter-spacing:1.4px}
+.form-step h2{font-size:25px;letter-spacing:-1.2px;outline:none}
+.form-description{font-size:12px;line-height:1.8;color:var(--muted);margin:12px 0 26px}
+.form-description>span{display:block;margin-top:8px;font-size:10px}
+.field{margin-bottom:22px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:9px}.field label>span{color:var(--green)}
+.field input,.field select,.field textarea{width:100%;font:inherit;font-size:14px;color:var(--ink);background:#fffefa;border:1px solid #d9d1c5;border-radius:10px;padding:14px;line-height:1.5;transition:border-color .15s,box-shadow .15s}
+.field textarea{resize:vertical;min-height:160px}
+.field input::placeholder,.field textarea::placeholder{color:#9b9085;font-size:12px}
+.field input:focus,.field textarea:focus,.field select:focus{outline:0;border-color:var(--green);box-shadow:0 0 0 3px #3f80651c}
+.field [aria-invalid=true]{border-color:#ab493b}.field-hint{font-size:10px;color:var(--muted);margin:8px 0 0;line-height:1.7}
+.field-error{font-size:11px;color:#a43a2b;margin:6px 0 0;line-height:1.6}.field-error:empty{display:none}
+.textarea-meta{display:flex;justify-content:space-between;gap:10px;font-size:10px;color:var(--muted);line-height:1.6;margin-top:7px}.textarea-meta output{white-space:nowrap}
+.encouragement{font-size:11px;line-height:1.8;color:var(--green);margin-top:15px;display:flex;gap:9px;align-items:center}.encouragement>span{font-size:23px}
+.form-actions{display:flex;gap:12px;margin-top:30px;justify-content:space-between}.form-actions #next{margin-left:auto;min-width:175px}.form-actions .outline{font-size:12px}
+.step-caption{text-align:center;font-size:10px;color:var(--muted);margin:18px 0 0}
+.review-list{margin:0}.review-list>div{display:grid;grid-template-columns:90px 1fr;padding:15px 0;border-bottom:1px solid var(--line);gap:16px;font-size:12px;line-height:1.8}.review-list dt{color:var(--muted)}.review-list dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.review-list .review-introduction{display:block}.review-introduction dd{margin-top:10px}
+.review-note{font-size:11px;color:var(--muted);line-height:1.9;margin:22px 0 0}
+.completion{text-align:center;padding:10px 0 20px}.completion-flower{display:block;font-size:90px;color:var(--green);line-height:1.2;margin-bottom:22px}.completion .eyebrow{justify-content:center;font-size:9px}.completion h2{font-size:32px;outline:none}.completion>p:not(.eyebrow){font-size:13px;color:var(--muted);line-height:2;margin-top:23px}.completion strong{font-weight:600;color:var(--ink)}
+.completion-next{background:#f4eee3;border-radius:14px;padding:18px;margin:25px 0}.completion-next>span{font-size:11px;color:var(--green);font-weight:700}.completion-next p{font-size:12px;line-height:1.9;margin:8px 0 0}.restart{display:block;border:0;border-bottom:1px solid #bbae9c;background:none;color:var(--muted);margin:23px auto 0;font-size:11px;padding:0 0 3px}
+@media(max-width:1050px){.apply-layout{gap:35px;grid-template-columns:.8fr 1.2fr}.application-card{padding:27px}.story-photo{width:230px;height:260px}.story-hello{right:-20px}.story-sticker{right:-10px}.form-step h2{font-size:23px}}
+@media(max-width:760px){.apply-layout{grid-template-columns:1fr;gap:30px;padding:15px 0 40px}.apply-story{padding:0;position:relative}.apply-story h1{font-size:34px;letter-spacing:-1.8px}.apply-story h1 br:nth-of-type(2){display:none}.apply-story .intro{font-size:12px;margin:17px 0 0}.apply-story .eyebrow{font-size:8px;margin-bottom:17px}.story-photo,.story-caption{display:none}.application-card{padding:24px 20px;border-radius:20px}.form-step h2{font-size:22px}.form-progress li{font-size:10px;gap:5px}.form-progress li>span{width:23px;height:23px}.form-topline{gap:8px}.form-category{font-size:12px}.demo-badge{font-size:9px}.demo-note{margin-bottom:25px;padding:12px 10px}.demo-note p{font-size:10px}.field input,.field select,.field textarea{font-size:16px}.textarea-meta{font-size:9px}.form-actions #next{min-width:155px}.form-actions .button{padding:13px 17px}.header>.text-link{font-size:10px;gap:5px}.completion h2{font-size:28px}}

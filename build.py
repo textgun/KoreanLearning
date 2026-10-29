@@ -103,7 +103,9 @@ def main():
     for source, target in [
         ("teacher-landing.html", "index.html"),
         ("teacher-landing.css", "teacher-landing.css"),
-        ("teacher-landing.js", "teacher-landing.js"),
+        ("apply.html", "apply.html"),
+        ("apply.css", "apply.css"),
+        ("apply.js", "apply.js"),
     ]:
         shutil.copy2(concept / source, teacher_dist / target)
     for photo in [
