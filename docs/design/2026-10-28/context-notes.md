@@ -24,3 +24,7 @@
 - 배포 대상은 시안 HTML/CSS/JS와 사용한 사진 3개로 한정한다.
 
 - 검증 완료. 클라이언트 테스트 통과, 임시 디렉터리에서 전체 빌드 성공, 말이음 이름·강사 신청하기 버튼 3개·배포 이미지 경로 검증 통과.
+
+- 공개 배포 확인. 커밋 4211d5728dd0557c1589f4c2466bd127531e236e, Actions 실행 40835637135 completed/success.
+- 공개 URL https://textgun.github.io/KoreanLearning/teacher/ 에서 말이음 이름과 강사 신청 버튼 및 안내 대화상자 확인.
+- 공개 화면 캡처는 malieum-preview.png에 저장.
