@@ -39,7 +39,7 @@ h1{font-size:clamp(40px,4.2vw,60px);line-height:1.36;letter-spacing:-3.8px;margi
 .portrait-student{right:0;bottom:0;width:51%;height:56%;border-radius:24px 24px 130px 130px;transform:rotate(6deg)}
 .photo-label{position:absolute;bottom:24px;left:20px;color:white;font-size:12px;background:#30241fd1;padding:9px 15px;border-radius:30px}
 .portrait-student .photo-label{top:22px;bottom:auto;background:var(--paper);color:var(--ink)}
-.hello{position:absolute;right:6%;top:15px;background:var(--paper);border:1px solid var(--line);border-radius:18px 18px 18px 0;padding:16px 22px;font-weight:700;font-size:18px;transform:rotate(9deg);box-shadow:0 8px 20px #39251f08}
+.hello{position:absolute;right:6%;top:15px;background:var(--paper);border:1px solid var(--line);border-radius:18px 18px 18px 0;padding:16px 22px;font-weight:700;font-size:18px;transform:rotate(9deg);box-shadow:0 8px 20px #39251f08;z-index:3}
 .hello span{color:var(--green)}
 .word-badge{position:absolute;right:1%;top:112px;background:var(--yellow);width:130px;height:130px;border-radius:50%;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:4px;transform:rotate(14deg)}
 .word-badge>span:first-child{transform:translateY(-12px)}
@@ -128,6 +128,7 @@ h1{font-size:46px}
 .hero-actions{gap:15px;flex-wrap:wrap}
 .values span{gap:22px}
 .collage{height:470px}
+.spark-one{right:auto;left:38%;top:-3%;font-size:64px}
 .word-badge{width:105px;height:105px;font-size:24px}
 .connection{font-size:11px;padding:14px}
 .section-heading>p{font-size:12px}
