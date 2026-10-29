@@ -127,10 +127,10 @@ h1{font-size:46px}
 .footer{gap:18px}
 }
 @media(max-width:760px){.wrap{width:calc(100% - 40px)}
-.header{height:85px;gap:10px}
+.header{height:auto;flex-wrap:wrap;gap:14px 10px;padding-block:22px}
 .brand{font-size:23px}
 .brand-icon{width:30px;height:30px;font-size:24px}
-nav{display:none}
+nav{order:1;width:100%;gap:20px}
 .compact{font-size:12px;padding:10px 13px;gap:10px}
 .hero{grid-template-columns:1fr;padding:32px 0 45px;gap:35px;min-height:0}
 .hero-copy{max-width:520px}
