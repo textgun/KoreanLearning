@@ -162,6 +162,9 @@ form.addEventListener('submit', async event => {
 });
 document.querySelector('#restart').addEventListener('click', () => {
   form.reset();
+  // 로그인 중에는 이메일 칸이 읽기 전용이라, 비워 두면 다시 신청할 수 없다.
+  const user = applicationClient?.auth.currentUser;
+  if (user) document.querySelector('#teacher-email').value = user.email;
   fields.forEach(([id, errorId]) => {
     document.getElementById(id).removeAttribute('aria-invalid');
     document.getElementById(errorId).textContent = '';
