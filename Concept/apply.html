@@ -29,6 +29,19 @@
       <li aria-current="step"><span>01</span> 기본 정보</li><li><span>02</span> 수업 소개</li><li><span>03</span> 내용 확인</li>
     </ol>
     <div class="demo-note"><span aria-hidden="true">✳</span><p>선생님과의 첫 만남을 준비하고 있어요.<br>지금은 작성만 가능하며, 입력 내용은 저장되거나 접수되지 않습니다.</p></div>
+    <section id="account-panel" hidden aria-labelledby="account-title">
+      <h3 id="account-title">신청 계정 확인</h3>
+      <p class="field-hint">이메일 인증 후 신청할 수 있습니다. 신청 상태도 같은 계정으로 확인해요.</p>
+      <div id="account-credentials">
+        <div class="field"><label for="account-email">계정 이메일</label><input id="account-email" type="email" autocomplete="username"></div>
+        <div class="field"><label for="account-password">비밀번호</label><input id="account-password" type="password" autocomplete="current-password" minlength="8"></div>
+        <label class="consent"><input type="checkbox" id="account-consent"> 계정 생성 시 이메일·비밀번호를 인증에 사용함을 확인하고 <a href="privacy.html" target="_blank" rel="noopener">개인정보 안내</a>에 동의합니다.</label>
+        <div class="account-actions"><button type="button" class="button outline" id="account-login">로그인</button><button type="button" class="button yellow" id="account-create">새 계정 만들기</button></div>
+      </div>
+      <div class="account-actions" id="account-signed-in" hidden><button type="button" class="button outline" id="account-verify">인증 메일 보내기</button><button type="button" class="button outline" id="account-refresh">인증·신청 상태 확인</button><button type="button" class="button outline" id="account-logout">로그아웃</button></div>
+      <p id="account-status" role="status" class="field-hint"></p>
+    </section>
+    <p id="submission-status" role="status" class="field-error"></p>
     <form id="application-form" novalidate>
       <section class="form-step" data-step="0">
         <p class="eyebrow">LET’S GET TO KNOW YOU</p>
@@ -51,6 +64,10 @@
         <h2 tabindex="-1">선생님의 이야기를 확인해요.</h2>
         <p class="form-description">바꾸고 싶은 내용이 있다면 이전 단계에서 수정해 주세요.</p>
         <dl class="review-list"><div><dt>이름</dt><dd data-review="teacher-name"></dd></div><div><dt>이메일</dt><dd data-review="teacher-email"></dd></div><div><dt>사용 언어</dt><dd data-review="teacher-language"></dd></div><div><dt>교육 경험</dt><dd data-review="teacher-experience"></dd></div><div class="review-introduction"><dt>자기소개와 수업</dt><dd data-review="teacher-introduction"></dd></div></dl>
+        <div id="application-consents" hidden>
+          <label class="consent"><input type="checkbox" id="adult-consent"> 만 18세 이상이며 한국어 설명 능력과 자기소개를 바탕으로 심사받는 것에 동의합니다.</label>
+          <label class="consent"><input type="checkbox" id="privacy-consent"> <a href="privacy.html" target="_blank" rel="noopener">개인정보 수집·이용 안내</a>를 읽고 동의합니다. 미승인 신청은 접수 후 90일, 승인 신청은 탈퇴 시까지 보관됩니다.</label>
+        </div>
         <p class="review-note">내용을 확인하셨다면 ‘작성 마치기’를 눌러 주세요.<br>아직 접수는 진행되지 않으며, 페이지를 벗어나면 작성 내용이 사라집니다.</p>
       </section>
       <div class="form-actions"><button class="button outline" id="previous" type="button" hidden>← 이전</button><button class="button yellow" id="next" type="submit">다음으로 <span class="arrow" aria-hidden="true">→</span></button></div>
@@ -62,6 +79,10 @@
   </section>
 </main>
 <footer class="wrap footer"><a class="brand" href="./"><span class="brand-icon">ㅁ</span> 말이음</a><p>언어를 나누면, 세상은 더 가까워집니다.</p><span>말이음 · 언어로 이어지는 우리</span></footer>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-functions-compat.js"></script>
+<script src="application-client.js"></script>
 <script src="apply.js"></script>
 </body>
 </html>

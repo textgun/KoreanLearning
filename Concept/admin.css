@@ -1,0 +1,7 @@
+/* 강사 신청 관리자 목록과 심사 입력을 읽기 쉽게 배치한다. */
+#admin-login{max-width:500px}#admin-login h2{font-size:25px;margin-bottom:25px}
+#application-list{display:grid;gap:24px;margin:25px 0}.review-card{padding:28px;background:#fffcf7;border:1px solid var(--line);border-radius:20px}
+.review-card h2{font-size:24px}.review-card p{font-size:14px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere}
+.review-card textarea{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;min-height:85px}
+#status-filter{font:inherit;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff}
+#admin-status{margin:25px 0 60px;line-height:1.8}#load-more{margin-bottom:30px}

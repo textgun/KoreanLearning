@@ -106,8 +106,15 @@ def main():
         ("apply.html", "apply.html"),
         ("apply.css", "apply.css"),
         ("apply.js", "apply.js"),
+        ("application-client.js", "application-client.js"),
+        ("admin.html", "admin.html"),
+        ("admin.css", "admin.css"),
+        ("admin.js", "admin.js"),
+        ("privacy.html", "privacy.html"),
+        ("privacy.js", "privacy.js"),
     ]:
         shutil.copy2(concept / source, teacher_dist / target)
+    shutil.copy2(Path("functions/application-policy.json"), teacher_dist / "application-policy.json")
     for photo in [
         "7c612a2bbebcbd73b882d6dd34dfbb82.jpg",
         "119e4b33766815aadf682f06cfff73b6.jpg",

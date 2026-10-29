@@ -44,3 +44,12 @@
 .completion-next{background:#f4eee3;border-radius:14px;padding:18px;margin:25px 0}.completion-next>span{font-size:12px;color:#326852;font-weight:700}.completion-next p{font-size:14px;line-height:1.9;margin:8px 0 0}.restart{display:block;border:0;border-bottom:1px solid #bbae9c;background:none;color:var(--muted);margin:23px auto 0;font-size:13px;padding:0 0 3px}
 @media(max-width:1050px){.apply-layout{gap:35px;grid-template-columns:.8fr 1.2fr}.application-card{padding:27px}.story-photo{width:230px;height:260px}.story-hello{right:-20px}.story-sticker{right:-10px}.form-step h2{font-size:23px}}
 @media(max-width:760px){.apply-layout{grid-template-columns:1fr;gap:30px;padding:15px 0 40px}.apply-story{padding:0;position:relative}.apply-story h1{font-size:34px;letter-spacing:-1.8px}.apply-story h1 br:nth-of-type(2){display:none}.apply-story .intro{font-size:14px;margin:17px 0 0}.apply-story .eyebrow{font-size:10px;margin-bottom:17px}.story-photo,.story-caption{display:none}.application-card{padding:24px 20px;border-radius:20px}.form-step h2{font-size:22px}.form-progress li{gap:5px}.form-progress li>span{width:23px;height:23px}.form-topline{gap:8px}.form-category{font-size:12px}.demo-badge{font-size:11px}.demo-note{margin-bottom:25px;padding:12px 10px}.field input,.field select,.field textarea{font-size:16px}.form-actions #next{min-width:155px}.form-actions .button{padding:13px 17px}.header>.text-link{font-size:12px;gap:5px}.completion h2{font-size:28px}}
+
+/* 실제 접수 계정과 동의 안내. */
+#account-panel{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:28px}
+.account-actions{display:flex;flex-wrap:wrap;gap:10px;margin:15px 0}
+.account-actions .button{font-size:12px;padding:12px 16px}
+.consent{display:block;font-size:13px;line-height:1.9;margin:16px 0;color:var(--muted)}
+.consent input{width:18px;height:18px;vertical-align:middle;accent-color:var(--green);margin-right:6px}
+.consent a{text-decoration:underline;color:var(--ink)}
+button:disabled{opacity:.55;cursor:wait;transform:none}
