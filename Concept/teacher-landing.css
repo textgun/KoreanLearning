@@ -108,14 +108,6 @@ details p{font-size:14px;line-height:1.9;color:var(--muted);padding:0 20px 15px 
 .footer>span{margin-left:auto;font-size:12px;color:var(--muted)}
 .skip{position:absolute;top:-100px;background:var(--yellow);padding:12px;z-index:10}
 .skip:focus{top:0}
-dialog{border:1px solid var(--line);border-radius:24px;background:var(--paper);color:var(--ink);max-width:520px;width:calc(100% - 36px);padding:40px}
-dialog::backdrop{background:#24181180;backdrop-filter:blur(5px)}
-dialog h2{font-size:27px}
-dialog p:not(.eyebrow){font-size:14px;line-height:1.9;color:var(--muted)}
-dialog .eyebrow{margin:20px 0}
-.dialog-symbol{font-size:46px;color:var(--green)}
-.close-dialog{position:absolute;right:18px;top:12px;border:0;background:none;color:var(--ink);font-size:30px}
-.close-action{margin-top:15px}
 
 @media(min-width:1450px){.hero{min-height:720px}
 }
@@ -176,8 +168,6 @@ h2{font-size:29px}
 .footer{flex-wrap:wrap;padding-block:30px;gap:13px}
 .footer p{font-size:12px}
 .footer>span{width:100%;margin:0;font-size:12px}
-dialog{padding:30px 24px}
-dialog h2{font-size:24px}
 }
 
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}
