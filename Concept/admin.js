@@ -4,6 +4,8 @@ const listRoot = document.querySelector('#application-list');
 let adminClient;
 let cursor = null;
 let loading = false;
+let sessionVersion = 0;
+const sameSession = (version, uid) => version === sessionVersion && adminClient.auth.currentUser?.uid === uid;
 const make = (tag, content, className) => {
   const node = document.createElement(tag);
   node.textContent = content;
@@ -26,12 +28,15 @@ function renderApplication(item) {
       const button = make('button', title, state === 'approved' ? 'button yellow' : 'button outline');
       button.addEventListener('click', async () => {
         if (!reason.value.trim()) { reason.focus(); adminStatus.textContent = '신청자에게 안내할 사유를 입력해 주세요.'; return; }
+        const version = sessionVersion;
+        const uid = adminClient.auth.currentUser?.uid;
+        if (!uid) return;
         actions.querySelectorAll('button').forEach(b => { b.disabled = true; });
         try {
           await adminClient.call('reviewTeacherApplication', { id: item.id, status: state, revision: item.revision, message: reason.value.trim() });
-          await loadApplications();
-        } catch { adminStatus.textContent = '처리 결과를 확인하지 못했습니다. 새로고침 후 상태를 확인해 주세요.'; }
-        finally { actions.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
+          if (sameSession(version, uid)) await loadApplications();
+        } catch { if (!sameSession(version, uid)) return; adminStatus.textContent = '처리 결과를 확인하지 못했습니다. 새로고침 후 상태를 확인해 주세요.'; }
+        finally { if (sameSession(version, uid)) actions.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
       });
       actions.append(button);
     }
@@ -40,25 +45,36 @@ function renderApplication(item) {
   listRoot.append(card);
 }
 async function loadApplications(more = false) {
-  if (loading) return;
+  const uid = adminClient?.auth.currentUser?.uid;
+  if (loading || !uid) return;
+  const version = sessionVersion;
   loading = true;
   document.querySelector('#status-filter').disabled = true;
   adminStatus.textContent = '신청 목록을 불러오고 있습니다…';
   if (!more) { cursor = null; listRoot.replaceChildren(); }
   try {
     const result = await adminClient.call('listTeacherApplications', { status: document.querySelector('#status-filter').value, after: more ? cursor : null });
+    if (!sameSession(version, uid)) return;
+    document.querySelector('#admin-workspace').hidden = false;
     result.items.forEach(renderApplication); cursor = result.next;
     document.querySelector('#load-more').hidden = !cursor;
     adminStatus.textContent = listRoot.children.length ? `${listRoot.children.length}건을 표시하고 있습니다.` : '해당 상태의 신청이 없습니다.';
-  } catch { listRoot.replaceChildren(); document.querySelector('#load-more').hidden = true; adminStatus.textContent = '신청 목록을 열 수 없습니다. 관리자 권한과 서버 배포 상태를 확인해 주세요.'; }
-  finally { loading = false; document.querySelector('#status-filter').disabled = false; }
+  } catch { if (!sameSession(version, uid)) return; listRoot.replaceChildren(); document.querySelector('#load-more').hidden = true; adminStatus.textContent = '신청 목록을 열 수 없습니다. 관리자 권한과 서버 배포 상태를 확인해 주세요.'; }
+  finally { if (sameSession(version, uid)) { loading = false; document.querySelector('#status-filter').disabled = false; } }
 }
 applicationReady.then(client => {
   adminClient = client;
   client.auth.onAuthStateChanged(user => {
+    sessionVersion++;
+    loading = false; cursor = null;
     listRoot.replaceChildren();
+    document.querySelector('#load-more').hidden = true;
+    document.querySelector('#status-filter').disabled = false;
+    document.querySelector('#admin-login').reset();
+    adminStatus.textContent = '';
     document.querySelector('#admin-login').hidden = !!user;
-    document.querySelector('#admin-workspace').hidden = !user;
+    document.querySelector('#admin-workspace').hidden = true;
+    document.querySelector('#admin-logout').hidden = !user;
     if (user) loadApplications();
   });
 }).catch(() => { adminStatus.textContent = '서버 연결을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.'; });
