@@ -16,3 +16,4 @@ ui-debug.log
 
 functions/.env*
 functions/.secret*
+*-firebase-adminsdk-*.json
