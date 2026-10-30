@@ -14,10 +14,10 @@ const LANGS = [
 
 // 단원 난이도 4단계. 교사·학생 화면 모두 이 순서대로 묶어 보여준다
 const LEVELS = [
-  { code: 'basic',        name: '기초',   icon: 'sprout',      color: '#10b981' },
-  { code: 'intermediate', name: '중급',   icon: 'trending-up', color: '#3b82f6' },
-  { code: 'advanced',     name: '고급',   icon: 'flame',       color: '#f59e0b' },
-  { code: 'master',       name: '마스터', icon: 'crown',       color: '#8b5cf6' }
+  { code: 'basic',        name: '기초',   icon: 'sprout',      color: '#326852' },
+  { code: 'intermediate', name: '중급',   icon: 'trending-up', color: '#47739e' },
+  { code: 'advanced',     name: '고급',   icon: 'flame',       color: '#ad5029' },
+  { code: 'master',       name: '마스터', icon: 'crown',       color: '#6a58a8' }
 ];
 const DEFAULT_LEVEL = 'basic';
 

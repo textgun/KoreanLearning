@@ -113,7 +113,7 @@ function showConfirm(title, message, danger = false) {
     backdrop.onclick = (e) => { if (e.target === backdrop) { root.innerHTML = ''; resolve(false); } };
     const modal = el('div', { class: 'modal' });
     modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, title));
-    const msg = el('div', { style: 'white-space:pre-line; margin-bottom:18px; color:#475569; line-height:1.6' });
+    const msg = el('div', { style: 'white-space:pre-line; margin-bottom:18px; color:var(--muted); line-height:1.6' });
     msg.textContent = message;
     modal.appendChild(msg);
     const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });

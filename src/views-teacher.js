@@ -5,7 +5,7 @@
 /* ---------- 로딩 ---------- */
 function renderLoadingPage() {
   const root = el('div', { style: 'display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; gap:16px' });
-  const spinner = el('div', { style: 'width:48px; height:48px; border:4px solid #e0e7ff; border-top-color:var(--primary); border-radius:50%; animation:spin 0.8s linear infinite' });
+  const spinner = el('div', { style: 'width:48px; height:48px; border:4px solid var(--primary-soft); border-top-color:var(--primary); border-radius:50%; animation:spin 0.8s linear infinite' });
   root.appendChild(spinner);
   root.appendChild(el('p', { style: 'color:var(--muted); font-size:1rem' }, '데이터를 불러오는 중...'));
   // 스피너 CSS
@@ -38,10 +38,10 @@ function renderLoginPage() {
     const active = _loginTab === code;
     const tab = el('button', {
       class: 'btn btn-sm',
-      style: `padding:11px 4px; font-weight:700; background:${active ? 'var(--primary)' : '#f1f5f9'}; color:${active ? '#fff' : '#475569'}`,
+      style: `padding:11px 4px; font-weight:700; background:${active ? 'var(--primary)' : 'var(--surface-2)'}; color:${active ? '#fff' : 'var(--muted)'}`,
       onClick: () => { _loginTab = code; render(); }
     });
-    tab.appendChild(el('i', { 'data-lucide': icon, style: `margin-right:5px; width:15px; height:15px; vertical-align:middle; color:${active ? '#fff' : '#64748b'};` }));
+    tab.appendChild(el('i', { 'data-lucide': icon, style: `margin-right:5px; width:15px; height:15px; vertical-align:middle; color:${active ? '#fff' : 'var(--muted)'};` }));
     tab.appendChild(document.createTextNode(label));
     tabs.appendChild(tab);
   });
@@ -231,7 +231,7 @@ function renderForgotPassword() {
       await fbResetPassword(email);
       panel.innerHTML = '';
       panel.appendChild(el('div', { style: 'text-align:center; padding:20px' }, [
-        el('i', { 'data-lucide': 'mail-check', style: 'width:48px; height:48px; color:#10b981; display:block; margin:0 auto 16px' }),
+        el('i', { 'data-lucide': 'mail-check', style: 'width:48px; height:48px; color:var(--green); display:block; margin:0 auto 16px' }),
       ]));
       panel.appendChild(el('h3', { style: 'text-align:center; margin-bottom:8px' }, '이메일을 확인하세요'));
       panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:20px' }, `${email}로 재설정 링크를 발송했습니다.`));
@@ -276,10 +276,10 @@ function renderHome() {
     state.view = 'teacher';
     render();
   }});
-  teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">단원 관리 · PDF 자동 변환</p>';
+  teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:var(--muted)">단원 관리 · PDF 자동 변환</p>';
 
   const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
-  studentCard.innerHTML = '<i data-lucide="graduation-cap" class="card-icon"></i><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:#94a3b8">게임으로 한국어 배우기</p>';
+  studentCard.innerHTML = '<i data-lucide="graduation-cap" class="card-icon"></i><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:var(--muted)">게임으로 한국어 배우기</p>';
 
   grid.append(teacherCard, studentCard);
   root.appendChild(grid);
@@ -295,15 +295,15 @@ function renderHome() {
 // 아무도 모른 채 버튼만 눌러보게 된다
 function renderLoadErrorBanner() {
   if (!state.loadError) return null;
-  const box = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger); background:#fef2f2' });
-  const t = el('h3', { style: 'color:#991b1b; display:flex; align-items:center; gap:8px; margin:0 0 8px' });
-  t.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:#991b1b;' }));
+  const box = el('div', { class: 'panel', style: 'border-left:4px solid var(--danger); background:var(--red-soft)' });
+  const t = el('h3', { style: 'color:var(--red); display:flex; align-items:center; gap:8px; margin:0 0 8px' });
+  t.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:var(--red);' }));
   t.appendChild(document.createTextNode('데이터를 불러오지 못했습니다'));
   box.appendChild(t);
-  box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:0' }, state.loadError));
+  box.appendChild(el('p', { style: 'color:var(--red); font-size:0.9rem; line-height:1.6; margin:0' }, state.loadError));
   // 학생 세션은 currentTeacher가 원래 null이다. 교사에게만 해당하는 안내다
   if (state.role === 'teacher' && !state.currentTeacher) {
-    box.appendChild(el('p', { style: 'color:#7f1d1d; font-size:0.9rem; line-height:1.6; margin:8px 0 0; font-weight:700' },
+    box.appendChild(el('p', { style: 'color:var(--red); font-size:0.9rem; line-height:1.6; margin:8px 0 0; font-weight:700' },
       '교사 정보를 읽지 못해 단원 생성과 학생 등록이 동작하지 않습니다.'));
   }
   return box;
@@ -328,7 +328,7 @@ function renderTeacher() {
   const _pv = getProvider(); const _pk = !!getApiKey(_pv); const _pi = PROVIDERS[_pv];
   const aiBtn = el('button', {
     class: 'btn btn-sm',
-    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}; display:inline-flex; align-items:center; gap:4px`,
+    style: `background:${_pk ? 'var(--green-soft)' : 'var(--red-soft)'}; color:${_pk ? 'var(--green-deep)' : 'var(--red)'}; border:1.5px solid ${_pk ? 'var(--green-line)' : 'var(--red-line)'}; display:inline-flex; align-items:center; gap:4px`,
     onClick: showApiKeyModal
   });
   aiBtn.appendChild(el('i', { 'data-lucide': _pi.icon, style: 'width:13px; height:13px;' }));
@@ -362,8 +362,8 @@ function renderTeacher() {
   
   // 교육중 상태 배너 추가
   if (isTraining) {
-    const banner = el('div', { style: 'background:#fef3c7; color:#92400e; border:1px solid #f5d48b; border-radius:10px; padding:12px; margin: 12px 0 16px; display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.88rem; line-height:1.4;' });
-    banner.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:#92400e; flex-shrink:0;' }));
+    const banner = el('div', { style: 'background:var(--accent-soft); color:var(--accent-ink); border:1px solid var(--yellow-line); border-radius:10px; padding:12px; margin: 12px 0 16px; display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.88rem; line-height:1.4;' });
+    banner.appendChild(el('i', { 'data-lucide': 'alert-triangle', style: 'width:18px; height:18px; color:var(--accent-ink); flex-shrink:0;' }));
     banner.appendChild(document.createTextNode('⚠️ 현재 교육중 모드입니다. 대시보드를 조회만 할 수 있으며, 단원 생성/편집 및 학생 등록이 제한됩니다.'));
     panel.appendChild(banner);
   }
@@ -383,8 +383,8 @@ function renderTeacher() {
 
       const h = el('h4', { style: 'display:flex; align-items:center; gap:6px; flex-wrap:wrap' });
       h.appendChild(document.createTextNode(u.title));
-      if (shared) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#5b21b6; background:#ede9fe; border-radius:20px; padding:2px 8px' }, '공용'));
-      else if (isAdmin && isPublished(u)) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:#065f46; background:#d1fae5; border-radius:20px; padding:2px 8px' }, '발행됨'));
+      if (shared) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:var(--lavender-ink); background:var(--lavender); border-radius:20px; padding:2px 8px' }, '공용'));
+      else if (isAdmin && isPublished(u)) h.appendChild(el('span', { style: 'font-size:0.72rem; font-weight:800; color:var(--green-deep); background:var(--green-soft); border-radius:20px; padding:2px 8px' }, '발행됨'));
       info.appendChild(h);
       info.appendChild(el('div', { class: 'meta' }, `어휘 ${u.vocabulary.length} · 문법 ${u.grammar.length} · 퀴즈 ${(u.quizzes || []).length}`));
 
@@ -419,13 +419,13 @@ function renderTeacher() {
         // 교사·학생에게 반영된다. 자동 동기화는 쓰기 횟수만 늘린다
         if (isAdmin) {
           const published = isPublished(u);
-          const pubBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#5b21b6', onClick: () => publishUnit(u) });
+          const pubBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:var(--lavender-ink)', onClick: () => publishUnit(u) });
           pubBtn.appendChild(el('i', { 'data-lucide': 'share-2', style: 'width:13px; height:13px;' }));
           pubBtn.appendChild(document.createTextNode(published ? '발행 갱신' : '공용으로 발행'));
           actions.appendChild(pubBtn);
 
           if (published) {
-            const downBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:#b91c1c', onClick: () => unpublishUnit(u) });
+            const downBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'display:inline-flex; align-items:center; gap:4px; color:var(--danger)', onClick: () => unpublishUnit(u) });
             downBtn.appendChild(document.createTextNode('발행 취소'));
             actions.appendChild(downBtn);
           }
@@ -437,7 +437,7 @@ function renderTeacher() {
 
         item.append(info, actions);
       } else {
-        const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:#f1f5f9; border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
+        const viewLabel = el('div', { style: 'font-size:0.82rem; color:var(--muted); font-weight:700; padding:4px 10px; background:var(--surface-2); border-radius:20px; display:inline-flex; align-items:center; gap:4px;' });
         viewLabel.appendChild(el('i', { 'data-lucide': 'eye', style: 'width:12px; height:12px; color:var(--muted);' }));
         viewLabel.appendChild(document.createTextNode('조회 모드'));
         item.append(info, viewLabel);
@@ -478,11 +478,11 @@ function renderTeacher() {
   } else {
     const stuList = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
     teacherStudents.forEach((s, idx) => {
-      const row = el('div', { style: 'display:flex; align-items:center; gap:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px' });
+      const row = el('div', { style: 'display:flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px' });
       row.appendChild(el('i', { 'data-lucide': 'user', style: 'width:14px; height:14px; color:var(--primary);' }));
       row.appendChild(el('div', { style: 'font-weight:600; flex:1' }, s.name));
-      if (s.nationality) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, s.nationality));
-      if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:#64748b' }, `${s.age}세`));
+      if (s.nationality) row.appendChild(el('div', { style: 'font-size:0.85rem; color:var(--muted)' }, s.nationality));
+      if (s.age) row.appendChild(el('div', { style: 'font-size:0.85rem; color:var(--muted)' }, `${s.age}세`));
       
       if (!isTraining) {
         // 코드 발급 여부다. 지금 접속해 있는지가 아니다.
@@ -490,19 +490,19 @@ function renderTeacher() {
         const hasRemote = !!s.authUid;
         const remoteBtn = el('button', {
           class: 'btn btn-ghost btn-sm',
-          style: `padding:2px 8px; min-height:auto; display:inline-flex; align-items:center; gap:3px; margin-right:4px; font-size:0.78rem; font-weight:700; color:${hasRemote ? '#059669' : '#64748b'}`,
+          style: `padding:2px 8px; min-height:auto; display:inline-flex; align-items:center; gap:3px; margin-right:4px; font-size:0.78rem; font-weight:700; color:${hasRemote ? 'var(--green)' : 'var(--muted)'}`,
           title: hasRemote ? '원격 접속 코드 재발급' : '원격 접속 코드 발급',
           onClick: () => showRemoteAccessModal(s)
         });
-        remoteBtn.appendChild(el('i', { 'data-lucide': hasRemote ? 'smartphone' : 'smartphone-nfc', style: `width:14px; height:14px; color:${hasRemote ? '#059669' : '#94a3b8'};` }));
+        remoteBtn.appendChild(el('i', { 'data-lucide': hasRemote ? 'smartphone' : 'smartphone-nfc', style: `width:14px; height:14px; color:${hasRemote ? 'var(--green)' : 'var(--muted)'};` }));
         remoteBtn.appendChild(document.createTextNode(hasRemote ? '발급됨' : '미발급'));
         row.appendChild(remoteBtn);
 
-        const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#3b82f6; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
-        editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
+        const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:var(--sky-ink); padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;', onClick: () => showEditStudentModal(state.currentTeacher, s, idx) });
+        editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:var(--sky-ink);' }));
         row.appendChild(editStuBtn);
 
-        const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:#ef4444; padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
+        const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:var(--danger); padding:2px; min-height:auto; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
           const ok = await showConfirm('학생 삭제', `"${s.name}" 학생을 정말 삭제하시겠습니까?`, true);
           if (!ok) return;
           try {
@@ -518,7 +518,7 @@ function renderTeacher() {
           render();
           toast(`${s.name} 학생을 삭제했습니다`, 'success');
         }});
-        delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
+        delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:var(--danger);' }));
         row.appendChild(delStuBtn);
       }
       stuList.appendChild(row);
@@ -658,7 +658,7 @@ function renderTeacherCreate() {
     const btn = el('button', {
       class: 'btn btn-sm',
       style: `padding:10px 4px; line-height:1.35; font-weight:700;
-              background:${active ? lv.color : '#f1f5f9'}; color:${active ? '#fff' : '#475569'};
+              background:${active ? lv.color : 'var(--surface-2)'}; color:${active ? '#fff' : 'var(--muted)'};
               border:1.5px solid ${active ? lv.color : 'transparent'}`,
       onClick: () => { _createLevel = lv.code; render(); }
     });
@@ -682,7 +682,7 @@ function renderTeacherCreate() {
 
   opts.append(pdfOpt, manualOpt);
   panel.appendChild(opts);
-  panel.appendChild(el('p', { style: 'font-size:0.82rem; color:#92400e; background:#fef3c7; border-radius:8px; padding:10px 12px; margin-top:10px; line-height:1.5' }, '⚠️ PDF 내용은 선택한 AI 서비스(Gemini·OpenAI·Anthropic 등) 서버로 전송됩니다. 개인정보·민감 자료가 포함된 경우 업로드 전 확인하세요.'));
+  panel.appendChild(el('p', { style: 'font-size:0.82rem; color:var(--accent-ink); background:var(--accent-soft); border-radius:8px; padding:10px 12px; margin-top:10px; line-height:1.5' }, '⚠️ PDF 내용은 선택한 AI 서비스(Gemini·OpenAI·Anthropic 등) 서버로 전송됩니다. 개인정보·민감 자료가 포함된 경우 업로드 전 확인하세요.'));
   panel.appendChild(el('div', { id: 'pdf-status', class: 'loading hidden' }));
   root.appendChild(panel);
   return root;
@@ -996,7 +996,7 @@ function scrollToNewItem(itemSelector, focusSelector) {
     // Highlight briefly
     last.style.transition = 'background 0.4s';
     const original = last.style.background;
-    last.style.background = '#fef3c7';
+    last.style.background = 'var(--accent-soft)';
     setTimeout(() => { last.style.background = original; }, 800);
     if (focusSelector) {
       const input = last.querySelector(focusSelector);
@@ -1155,8 +1155,8 @@ function calcOverallProgress(bestScores) {
 }
 
 function renderProgressBar(pct, height = '10px') {
-  const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#e2e8f0';
-  const wrap = el('div', { style: `background:#e2e8f0; border-radius:99px; height:${height}; overflow:hidden; flex:1` });
+  const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--sky-ink)' : pct > 0 ? 'var(--gold)' : 'var(--line)';
+  const wrap = el('div', { style: `background:var(--line); border-radius:99px; height:${height}; overflow:hidden; flex:1` });
   wrap.appendChild(el('div', { style: `background:${color}; width:${pct}%; height:100%; border-radius:99px` }));
   return wrap;
 }
@@ -1184,7 +1184,7 @@ function renderTeacherProgress() {
   }
 
   if (!_progressCache) {
-    panel.appendChild(el('div', { style: 'text-align:center; padding:32px; color:#64748b; font-size:1.05rem' }, '📊 학생 데이터 불러오는 중...'));
+    panel.appendChild(el('div', { style: 'text-align:center; padding:32px; color:var(--muted); font-size:1.05rem' }, '📊 학생 데이터 불러오는 중...'));
     root.appendChild(panel);
     loadStudentsProgress(state.currentUser.uid).then(cache => { _progressCache = cache; render(); });
     return root;
@@ -1194,15 +1194,15 @@ function renderTeacherProgress() {
     names.reduce((sum, name) => sum + calcOverallProgress((_progressCache[name] || defaultStats()).bestScores), 0) / names.length
   );
   
-  const summary = el('div', { style: 'display:flex; align-items:center; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin-bottom:20px' });
+  const summary = el('div', { style: 'display:flex; align-items:center; gap:16px; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:14px 18px; margin-bottom:20px' });
   
   const stuCountSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   stuCountSpan.appendChild(el('i', { 'data-lucide': 'users', style: 'width:15px; height:15px; color:var(--primary);' }));
   stuCountSpan.appendChild(document.createTextNode(`${names.length}명`));
   summary.appendChild(stuCountSpan);
   
-  const avgSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#059669' });
-  avgSpan.appendChild(el('i', { 'data-lucide': 'trending-up', style: 'width:15px; height:15px; color:#059669;' }));
+  const avgSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:var(--green)' });
+  avgSpan.appendChild(el('i', { 'data-lucide': 'trending-up', style: 'width:15px; height:15px; color:var(--green);' }));
   avgSpan.appendChild(document.createTextNode(`평균 ${avgPct}%`));
   summary.appendChild(avgSpan);
   
@@ -1222,21 +1222,21 @@ function renderTeacherProgress() {
     const stats = _progressCache[name] || defaultStats();
     const overallPct = calcOverallProgress(stats.bestScores);
 
-    const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:14px' });
+    const card = el('div', { style: 'border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:14px' });
 
     const hdr = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap' });
     
-    const sNameDiv = el('div', { style: 'font-size:1.1rem; font-weight:700; color:#1e293b; flex:1; display:flex; align-items:center; gap:6px' });
+    const sNameDiv = el('div', { style: 'font-size:1.1rem; font-weight:700; color:var(--text); flex:1; display:flex; align-items:center; gap:6px' });
     sNameDiv.appendChild(el('i', { 'data-lucide': 'user', style: 'width:18px; height:18px; color:var(--primary);' }));
     sNameDiv.appendChild(document.createTextNode(name));
     hdr.appendChild(sNameDiv);
     
-    hdr.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `⭐ Lv.${stats.level}`));
-    hdr.appendChild(el('div', { style: 'background:#fef3c7; color:#92400e; border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `✨ ${stats.xp} XP`));
+    hdr.appendChild(el('div', { style: 'background:var(--lavender); color:var(--lavender-ink); border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `⭐ Lv.${stats.level}`));
+    hdr.appendChild(el('div', { style: 'background:var(--accent-soft); color:var(--accent-ink); border-radius:20px; padding:3px 10px; font-size:0.85rem; font-weight:600' }, `✨ ${stats.xp} XP`));
     card.appendChild(hdr);
 
     const overallRow = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:14px' });
-    overallRow.appendChild(el('div', { style: 'font-size:0.88rem; color:#64748b; white-space:nowrap' }, '전체 진도'));
+    overallRow.appendChild(el('div', { style: 'font-size:0.88rem; color:var(--muted); white-space:nowrap' }, '전체 진도'));
     overallRow.appendChild(renderProgressBar(overallPct));
     overallRow.appendChild(el('div', { style: 'font-weight:700; font-size:0.95rem; min-width:40px; text-align:right' }, `${overallPct}%`));
     card.appendChild(overallRow);
@@ -1247,12 +1247,12 @@ function renderTeacherProgress() {
         const p = calcUnitProgress(stats.bestScores, unit);
         const pct = p ? p.pct : 0;
         const label = unit.title.replace(/^\d+(?:단원|단)?\s*[-·]\s*/, '') || unit.title;
-        const chip = el('div', { style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px' });
-        chip.appendChild(el('div', { style: 'font-size:0.82rem; font-weight:600; color:#374151; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' }, label));
-        const chipBar = el('div', { style: 'background:#e2e8f0; border-radius:99px; height:6px; overflow:hidden; margin-bottom:3px' });
-        chipBar.appendChild(el('div', { style: `background:${pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#cbd5e1'}; width:${pct}%; height:100%; border-radius:99px` }));
+        const chip = el('div', { style: 'background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px' });
+        chip.appendChild(el('div', { style: 'font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' }, label));
+        const chipBar = el('div', { style: 'background:var(--line); border-radius:99px; height:6px; overflow:hidden; margin-bottom:3px' });
+        chipBar.appendChild(el('div', { style: `background:${pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--sky-ink)' : pct > 0 ? 'var(--gold)' : 'var(--line-strong)'}; width:${pct}%; height:100%; border-radius:99px` }));
         chip.appendChild(chipBar);
-        chip.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b' }, p ? `${p.done}/${p.total} (${pct}%)` : '활동 없음'));
+        chip.appendChild(el('div', { style: 'font-size:0.78rem; color:var(--muted)' }, p ? `${p.done}/${p.total} (${pct}%)` : '활동 없음'));
         grid.appendChild(chip);
       });
       card.appendChild(grid);
@@ -1260,8 +1260,8 @@ function renderTeacherProgress() {
 
     if (stats.badges && stats.badges.length > 0) {
       const badgeNames = stats.badges.map(id => BADGE_NAMES[id] || id).join('  ');
-      const badgeDiv = el('div', { style: 'margin-top:10px; font-size:0.82rem; color:#64748b; display:flex; align-items:center; gap:4px' });
-      badgeDiv.appendChild(el('i', { 'data-lucide': 'award', style: 'width:14px; height:14px; color:#f59e0b;' }));
+      const badgeDiv = el('div', { style: 'margin-top:10px; font-size:0.82rem; color:var(--muted); display:flex; align-items:center; gap:4px' });
+      badgeDiv.appendChild(el('i', { 'data-lucide': 'award', style: 'width:14px; height:14px; color:var(--gold);' }));
       badgeDiv.appendChild(document.createTextNode(badgeNames));
       card.appendChild(badgeDiv);
     }
@@ -1285,7 +1285,7 @@ function renderAdmin() {
 
   const head = el('div', { class: 'row-between' });
   const title = el('h2', { style: 'display:flex; align-items:center; gap:8px' });
-  title.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:24px; height:24px; color:#f59e0b;' }));
+  title.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:24px; height:24px; color:var(--gold);' }));
   title.appendChild(document.createTextNode('관리자 대시보드'));
   head.appendChild(title);
   
@@ -1294,7 +1294,7 @@ function renderAdmin() {
   
   const aiBtn = el('button', {
     class: 'btn btn-sm',
-    style: `background:${_pk ? '#dcfce7' : '#fef2f2'}; color:${_pk ? '#166534' : '#991b1b'}; border:1.5px solid ${_pk ? '#86efac' : '#fca5a5'}; display:inline-flex; align-items:center; gap:4px`,
+    style: `background:${_pk ? 'var(--green-soft)' : 'var(--red-soft)'}; color:${_pk ? 'var(--green-deep)' : 'var(--red)'}; border:1.5px solid ${_pk ? 'var(--green-line)' : 'var(--red-line)'}; display:inline-flex; align-items:center; gap:4px`,
     onClick: showApiKeyModal
   });
   aiBtn.appendChild(el('i', { 'data-lucide': _pi.icon, style: 'width:13px; height:13px;' }));
@@ -1316,26 +1316,26 @@ function renderAdmin() {
   const training = masterState.teachers.filter(t => t.approved !== false && t.status === 'training').length;
   const totalStudents = masterState.teachers.reduce((s, t) => s + (t.students || []).length, 0);
 
-  const summary = el('div', { style: 'display:flex; gap:16px; flex-wrap:wrap; background:#f1f5f9; border-radius:12px; padding:14px 18px; margin:16px 0; align-items:center;' });
+  const summary = el('div', { style: 'display:flex; gap:16px; flex-wrap:wrap; background:var(--surface-2); border-radius:12px; padding:14px 18px; margin:16px 0; align-items:center;' });
   
   const tCountSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600' });
   tCountSpan.appendChild(el('i', { 'data-lucide': 'users', style: 'width:15px; height:15px; color:var(--primary);' }));
   tCountSpan.appendChild(document.createTextNode(`교사 ${masterState.teachers.length}명`));
   summary.appendChild(tCountSpan);
   
-  const teachingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#059669' });
-  teachingSpan.appendChild(el('i', { 'data-lucide': 'activity', style: 'width:15px; height:15px; color:#059669;' }));
+  const teachingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:var(--green)' });
+  teachingSpan.appendChild(el('i', { 'data-lucide': 'activity', style: 'width:15px; height:15px; color:var(--green);' }));
   teachingSpan.appendChild(document.createTextNode(`수업중 ${teaching}명`));
   summary.appendChild(teachingSpan);
   
-  const trainingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#d97706' });
-  trainingSpan.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px; color:#d97706;' }));
+  const trainingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:600; color:var(--accent-ink)' });
+  trainingSpan.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px; color:var(--accent-ink);' }));
   trainingSpan.appendChild(document.createTextNode(`교육중 ${training}명`));
   summary.appendChild(trainingSpan);
 
   if (pending > 0) {
-    const pendingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:700; color:#b91c1c' });
-    pendingSpan.appendChild(el('i', { 'data-lucide': 'hourglass', style: 'width:15px; height:15px; color:#b91c1c;' }));
+    const pendingSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px; font-weight:700; color:var(--danger)' });
+    pendingSpan.appendChild(el('i', { 'data-lucide': 'hourglass', style: 'width:15px; height:15px; color:var(--danger);' }));
     pendingSpan.appendChild(document.createTextNode(`승인 대기 ${pending}명`));
     summary.appendChild(pendingSpan);
   }
@@ -1351,7 +1351,7 @@ function renderAdmin() {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:24px' }, '등록된 교사가 없습니다. + 교사 추가 버튼으로 시작하세요.'));
   } else {
     masterState.teachers.forEach(teacher => {
-      const card = el('div', { style: 'border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer', onClick: () => { state.adminTeacherId = teacher.id; _adminProgressCache = null; _adminProfileCache = null; state.view = 'admin-teacher'; render(); }});
+      const card = el('div', { style: 'border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer', onClick: () => { state.adminTeacherId = teacher.id; _adminProgressCache = null; _adminProfileCache = null; state.view = 'admin-teacher'; render(); }});
       const hdr = el('div', { style: 'display:flex; align-items:center; gap:10px; margin-bottom:8px' });
       
       const tNameDiv = el('div', { style: 'font-weight:700; font-size:1.05rem; flex:1; display:flex; align-items:center; gap:6px' });
@@ -1361,13 +1361,13 @@ function renderAdmin() {
       
       const sc = teacher.status === 'teaching';
       if (teacher.approved === false) {
-        hdr.appendChild(el('div', { style: 'background:#fee2e2; color:#b91c1c; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:700' }, '⏳ 승인 대기'));
+        hdr.appendChild(el('div', { style: 'background:var(--red-soft); color:var(--danger); border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:700' }, '⏳ 승인 대기'));
       } else {
-        hdr.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:600` }, sc ? '🟢 수업중' : '🟡 교육중'));
+        hdr.appendChild(el('div', { style: `background:${sc ? 'var(--green-soft)' : 'var(--accent-soft)'}; color:${sc ? 'var(--green)' : 'var(--accent-ink)'}; border-radius:20px; padding:3px 10px; font-size:0.82rem; font-weight:600` }, sc ? '🟢 수업중' : '🟡 교육중'));
       }
       card.appendChild(hdr);
       
-      const meta = el('div', { style: 'font-size:0.88rem; color:#64748b; display:flex; gap:16px; flex-wrap:wrap; align-items:center;' });
+      const meta = el('div', { style: 'font-size:0.88rem; color:var(--muted); display:flex; gap:16px; flex-wrap:wrap; align-items:center;' });
       if (teacher.phone) {
         const phoneSpan = el('span', { style: 'display:inline-flex; align-items:center; gap:4px' });
         phoneSpan.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:13px; height:13px;' }));
@@ -1436,16 +1436,16 @@ function renderAdminTeacherDetail() {
 
   const sc = teacher.status === 'teaching';
   const info = el('div', { style: 'display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; margin-bottom:16px; align-items:center' });
-  info.appendChild(el('div', { style: `background:${sc ? '#d1fae5' : '#fef3c7'}; color:${sc ? '#059669' : '#d97706'}; border-radius:20px; padding:4px 12px; font-weight:600; font-size:0.9rem` }, sc ? '🟢 수업진행중' : '🟡 교육중'));
+  info.appendChild(el('div', { style: `background:${sc ? 'var(--green-soft)' : 'var(--accent-soft)'}; color:${sc ? 'var(--green)' : 'var(--accent-ink)'}; border-radius:20px; padding:4px 12px; font-weight:600; font-size:0.9rem` }, sc ? '🟢 수업진행중' : '🟡 교육중'));
   info.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: async () => { teacher.status = sc ? 'training' : 'teaching'; await fbSaveTeacher(teacher.id, { name: teacher.name, phone: teacher.phone, status: teacher.status, note: teacher.note }); render(); }}, `↔ ${sc ? '교육중으로' : '수업중으로'} 변경`));
   if (teacher.phone) {
-    const phoneDiv = el('div', { style: 'color:#64748b; font-size:0.9rem; display:flex; align-items:center; gap:4px' });
+    const phoneDiv = el('div', { style: 'color:var(--muted); font-size:0.9rem; display:flex; align-items:center; gap:4px' });
     phoneDiv.appendChild(el('i', { 'data-lucide': 'phone', style: 'width:14px; height:14px;' }));
     phoneDiv.appendChild(document.createTextNode(teacher.phone));
     info.appendChild(phoneDiv);
   }
   if (teacher.note) {
-    const noteDiv = el('div', { style: 'color:#64748b; font-size:0.9rem; display:flex; align-items:center; gap:4px' });
+    const noteDiv = el('div', { style: 'color:var(--muted); font-size:0.9rem; display:flex; align-items:center; gap:4px' });
     noteDiv.appendChild(el('i', { 'data-lucide': 'file-text', style: 'width:14px; height:14px;' }));
     noteDiv.appendChild(document.createTextNode(teacher.note));
     info.appendChild(noteDiv);
@@ -1482,7 +1482,7 @@ function renderAdminTeacherDetail() {
   }
 
   if (!_adminProgressCache) {
-    panel.appendChild(el('div', { style: 'text-align:center; padding:24px; color:#64748b' }, '📊 진도 불러오는 중...'));
+    panel.appendChild(el('div', { style: 'text-align:center; padding:24px; color:var(--muted)' }, '📊 진도 불러오는 중...'));
     root.appendChild(panel);
     loadStudentsProgress(teacher.id).then(cache => { _adminProgressCache = cache; render(); });
     return root;
@@ -1492,29 +1492,29 @@ function renderAdminTeacherDetail() {
   teacher.students.forEach((student, idx) => {
     const stats = _adminProgressCache[student.name] || defaultStats();
     const pct = calcOverallProgress(stats.bestScores);
-    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px 36px; gap:8px; align-items:center; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px' });
+    const row = el('div', { style: 'display:grid; grid-template-columns:1fr 64px 120px 36px 36px; gap:8px; align-items:center; border:1px solid var(--line); border-radius:10px; padding:12px 14px' });
 
     const nameDiv = el('div');
     nameDiv.appendChild(el('div', { style: 'font-weight:600; font-size:0.95rem' }, student.name));
     const metaStr = [student.nationality, student.age ? student.age + '세' : ''].filter(Boolean).join(' · ');
-    if (metaStr) nameDiv.appendChild(el('div', { style: 'font-size:0.82rem; color:#64748b; margin-top:2px' }, metaStr));
+    if (metaStr) nameDiv.appendChild(el('div', { style: 'font-size:0.82rem; color:var(--muted); margin-top:2px' }, metaStr));
     row.appendChild(nameDiv);
 
     const lvl = el('div', { style: 'text-align:center; font-size:0.82rem' });
-    lvl.appendChild(el('div', { style: 'font-weight:700; color:#5b21b6' }, `Lv.${stats.level}`));
-    lvl.appendChild(el('div', { style: 'color:#92400e' }, `${stats.xp}XP`));
+    lvl.appendChild(el('div', { style: 'font-weight:700; color:var(--lavender-ink)' }, `Lv.${stats.level}`));
+    lvl.appendChild(el('div', { style: 'color:var(--accent-ink)' }, `${stats.xp}XP`));
     row.appendChild(lvl);
 
     const prog = el('div');
-    const barWrap = el('div', { style: 'background:#e2e8f0; border-radius:99px; height:8px; overflow:hidden; margin-bottom:2px' });
-    const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct > 0 ? '#f59e0b' : '#e2e8f0';
+    const barWrap = el('div', { style: 'background:var(--line); border-radius:99px; height:8px; overflow:hidden; margin-bottom:2px' });
+    const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--sky-ink)' : pct > 0 ? 'var(--gold)' : 'var(--line)';
     barWrap.appendChild(el('div', { style: `background:${barColor}; width:${pct}%; height:100%; border-radius:99px` }));
     prog.appendChild(barWrap);
-    prog.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; text-align:center' }, `${pct}%`));
+    prog.appendChild(el('div', { style: 'font-size:0.78rem; color:var(--muted); text-align:center' }, `${pct}%`));
     row.appendChild(prog);
 
     const editStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: () => showEditStudentModal(teacher, student, idx) });
-    editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:#3b82f6;' }));
+    editStuBtn.appendChild(el('i', { 'data-lucide': 'pencil', style: 'width:14px; height:14px; color:var(--sky-ink);' }));
     row.appendChild(editStuBtn);
 
     const delStuBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'padding:4px 6px; display:inline-flex; align-items:center; justify-content:center;', onClick: async () => {
@@ -1531,7 +1531,7 @@ function renderAdminTeacherDetail() {
       render();
       toast(`${student.name} 학생을 삭제했습니다`, 'success');
     }});
-    delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:#ef4444;' }));
+    delStuBtn.appendChild(el('i', { 'data-lucide': 'trash-2', style: 'width:14px; height:14px; color:var(--danger);' }));
     row.appendChild(delStuBtn);
 
     rows.appendChild(row);
@@ -1619,14 +1619,14 @@ function showRemoteAccessModal(student) {
     modal.appendChild(h);
 
     if (issued) {
-      modal.appendChild(el('p', { style: 'font-size:0.88rem; margin-bottom:14px; line-height:1.6; color:#92400e; background:#fef3c7; border-radius:8px; padding:10px 12px' },
+      modal.appendChild(el('p', { style: 'font-size:0.88rem; margin-bottom:14px; line-height:1.6; color:var(--accent-ink); background:var(--accent-soft); border-radius:8px; padding:10px 12px' },
         'PIN은 지금만 보입니다. 창을 닫으면 다시 볼 수 없고, 잊으면 재발급해야 합니다.'));
 
-      const box = el('div', { style: 'background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:18px; text-align:center; margin-bottom:14px' });
-      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, '학생 코드'));
-      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.09em; color:#065f46; margin-bottom:14px' }, issued.code));
-      box.appendChild(el('div', { style: 'font-size:0.78rem; color:#166534; font-weight:700; margin-bottom:3px' }, 'PIN'));
-      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.2em; color:#065f46' }, issued.pin));
+      const box = el('div', { style: 'background:var(--green-soft); border:1.5px solid var(--green-line); border-radius:12px; padding:18px; text-align:center; margin-bottom:14px' });
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:var(--green-deep); font-weight:700; margin-bottom:3px' }, '학생 코드'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.09em; color:var(--green-deep); margin-bottom:14px' }, issued.code));
+      box.appendChild(el('div', { style: 'font-size:0.78rem; color:var(--green-deep); font-weight:700; margin-bottom:3px' }, 'PIN'));
+      box.appendChild(el('div', { style: 'font-size:1.5rem; font-weight:900; letter-spacing:0.2em; color:var(--green-deep)' }, issued.pin));
       modal.appendChild(box);
 
       const copyBtn = el('button', { class: 'btn btn-ghost btn-block', style: 'margin-bottom:8px', onClick: async () => {
@@ -1649,9 +1649,9 @@ function showRemoteAccessModal(student) {
     modal.appendChild(desc);
 
     if (existingCode) {
-      const cur = el('div', { style: 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; text-align:center' });
-      cur.appendChild(el('div', { style: 'font-size:0.78rem; color:#64748b; font-weight:700; margin-bottom:3px' }, '현재 학생 코드'));
-      cur.appendChild(el('div', { style: 'font-size:1.2rem; font-weight:800; letter-spacing:0.08em; color:#334155' }, existingCode));
+      const cur = el('div', { style: 'background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:14px; text-align:center' });
+      cur.appendChild(el('div', { style: 'font-size:0.78rem; color:var(--muted); font-weight:700; margin-bottom:3px' }, '현재 학생 코드'));
+      cur.appendChild(el('div', { style: 'font-size:1.2rem; font-weight:800; letter-spacing:0.08em; color:var(--text)' }, existingCode));
       modal.appendChild(cur);
     }
 
@@ -1749,7 +1749,7 @@ function confirmOverModal(title, message, keepLabel = '계속 작성', discardLa
     backdrop.onclick = (e) => { if (e.target === backdrop) close(false); };
     const modal = el('div', { class: 'modal', style: 'max-width:360px' });
     modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, title));
-    modal.appendChild(el('div', { style: 'margin-bottom:18px; color:#475569; line-height:1.6' }, message));
+    modal.appendChild(el('div', { style: 'margin-bottom:18px; color:var(--muted); line-height:1.6' }, message));
     const btns = el('div', { style: 'display:flex; gap:10px; justify-content:flex-end' });
     btns.appendChild(el('button', { class: 'btn btn-ghost', onClick: () => close(false) }, keepLabel));
     btns.appendChild(el('button', { class: 'btn btn-danger', onClick: () => close(true) }, discardLabel));
@@ -1989,7 +1989,7 @@ function renderTeacherDirectory() {
 
   const { profiles, error } = _directoryCache;
   if (error) {
-    panel.appendChild(el('p', { style: 'color:#991b1b; font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
+    panel.appendChild(el('p', { style: 'color:var(--red); font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
     return panel;
   }
   if (!profiles.length) {
@@ -2053,9 +2053,9 @@ async function showTeacherProfileModal() {
   modal.appendChild(el('h3', { style: 'margin-bottom:10px' }, '🪪 공개 프로필'));
 
   const listed = !!(saved && saved.listed);
-  modal.appendChild(el('div', { style: `font-size:0.85rem; font-weight:700; margin-bottom:8px; color:${listed ? '#065f46' : '#475569'}` },
+  modal.appendChild(el('div', { style: `font-size:0.85rem; font-weight:700; margin-bottom:8px; color:${listed ? 'var(--green-deep)' : 'var(--muted)'}` },
     listed ? '공개 중 — 가입한 사용자에게 보입니다' : '비공개 — 관리자가 확인한 뒤 공개합니다'));
-  modal.appendChild(el('p', { style: 'color:#92400e; background:#fef3c7; border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:14px; line-height:1.5' },
+  modal.appendChild(el('p', { style: 'color:var(--accent-ink); background:var(--accent-soft); border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:14px; line-height:1.5' },
     '가입한 사용자라면 누구나 볼 수 있습니다. 전화번호, 이메일, 주소, 실명은 넣지 마세요.'));
 
   const field = (label, input) => { modal.appendChild(el('label', { style: 'display:block; font-weight:600; font-size:0.9rem; margin-bottom:4px' }, label)); modal.appendChild(input); };
@@ -2129,7 +2129,7 @@ async function showTeacherProfileModal() {
 // 관리자 교사 상세의 프로필 칸. 내용은 읽기만 하고 공개 여부만 바꾼다.
 // 프로필은 교사가 쓴 글이라 innerHTML 없이 텍스트 노드로만 넣는다
 function renderAdminProfileSection(teacher) {
-  const box = el('div', { style: 'border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:16px' });
+  const box = el('div', { style: 'border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:16px' });
   const head = el('div', { class: 'row-between', style: 'gap:8px; flex-wrap:wrap; margin-bottom:8px' });
   const title = el('h3', { style: 'margin:0; display:flex; align-items:center; gap:6px; font-size:1rem' });
   title.appendChild(el('i', { 'data-lucide': 'id-card', style: 'width:16px; height:16px; color:var(--primary);' }));
@@ -2149,7 +2149,7 @@ function renderAdminProfileSection(teacher) {
 
   const { profile, error } = _adminProfileCache;
   if (error) {
-    box.appendChild(el('div', { style: 'color:#991b1b; font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
+    box.appendChild(el('div', { style: 'color:var(--red); font-size:0.9rem' }, `불러오지 못했습니다. ${error}`));
     return box;
   }
   if (!profile) {
@@ -2158,7 +2158,7 @@ function renderAdminProfileSection(teacher) {
   }
 
   const listed = !!profile.listed;
-  const badge = el('span', { style: `font-size:0.75rem; font-weight:800; border-radius:20px; padding:2px 8px; background:${listed ? '#d1fae5' : '#f1f5f9'}; color:${listed ? '#065f46' : '#475569'}` }, listed ? '공개 중' : '비공개');
+  const badge = el('span', { style: `font-size:0.75rem; font-weight:800; border-radius:20px; padding:2px 8px; background:${listed ? 'var(--green-soft)' : 'var(--surface-2)'}; color:${listed ? 'var(--green-deep)' : 'var(--muted)'}` }, listed ? '공개 중' : '비공개');
   const toggleBtn = el('button', { class: listed ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm' }, listed ? '비공개로 전환' : '공개하기');
   toggleBtn.onclick = async () => {
     toggleBtn.disabled = true;
@@ -2179,7 +2179,7 @@ function renderAdminProfileSection(teacher) {
   const row = (label, value) => {
     if (!value) return;
     const r = el('div', { style: 'font-size:0.9rem; line-height:1.6; margin-bottom:4px; white-space:pre-line' });
-    r.appendChild(el('span', { style: 'font-weight:600; color:#475569; margin-right:6px' }, label));
+    r.appendChild(el('span', { style: 'font-weight:600; color:var(--muted); margin-right:6px' }, label));
     r.appendChild(document.createTextNode(value));
     box.appendChild(r);
   };

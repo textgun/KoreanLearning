@@ -138,7 +138,7 @@ function renderStudent() {
     const leaderPanel = el('div', { class: 'panel', style: 'margin-top:20px; border-top: 4px solid var(--accent);' });
     
     const leaderTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:12px' });
-    leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:#f59e0b;' }));
+    leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:var(--gold);' }));
     // 원격 학생은 교사 문서를 읽을 수 없어 선생님 이름을 표시하지 않는다
     leaderTitle.appendChild(document.createTextNode('🏆 우리 반 리더보드'));
     leaderPanel.appendChild(leaderTitle);
@@ -156,11 +156,11 @@ function renderStudent() {
       // 순위 컬럼
       const rankCol = el('div', { style: 'font-weight:800; font-size:1.1rem; text-align:center; display:flex; justify-content:center; align-items:center;' });
       if (rank === 1) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:18px; height:18px; color:#f59e0b;' }));
+        rankCol.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:18px; height:18px; color:var(--gold);' }));
       } else if (rank === 2) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:#3b82f6;' }));
+        rankCol.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:var(--sky-ink);' }));
       } else if (rank === 3) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'medal', style: 'width:18px; height:18px; color:#10b981;' }));
+        rankCol.appendChild(el('i', { 'data-lucide': 'medal', style: 'width:18px; height:18px; color:var(--green);' }));
       } else {
         rankCol.appendChild(document.createTextNode(String(rank)));
       }
@@ -170,24 +170,24 @@ function renderStudent() {
       const nameWrap = el('div', { style: `font-weight:${isMe ? '800' : '600'}; font-size:0.95rem; color:${isMe ? 'var(--primary-dark)' : 'var(--text)'}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;` });
       nameWrap.appendChild(document.createTextNode(c.name));
       if (c.nationality) {
-        const flag = el('span', { style: 'font-size:0.75rem; color:#64748b; background:#e2e8f0; padding:1px 6px; border-radius:10px;' }, c.nationality);
+        const flag = el('span', { style: 'font-size:0.75rem; color:var(--muted); background:var(--line); padding:1px 6px; border-radius:10px;' }, c.nationality);
         nameWrap.appendChild(flag);
       }
       row.appendChild(nameWrap);
       
       // 레벨
-      row.appendChild(el('div', { style: 'font-size:0.85rem; font-weight:700; color:#5b21b6; text-align:center;' }, `Lv.${c.stats.level || 1}`));
+      row.appendChild(el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--lavender-ink); text-align:center;' }, `Lv.${c.stats.level || 1}`));
       
       // XP
-      const xpCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:#92400e; display:flex; align-items:center; gap:2px; justify-content:center;' });
-      xpCol.appendChild(el('i', { 'data-lucide': 'sparkles', style: 'width:12px; height:12px; color:#f59e0b;' }));
+      const xpCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--accent-ink); display:flex; align-items:center; gap:2px; justify-content:center;' });
+      xpCol.appendChild(el('i', { 'data-lucide': 'sparkles', style: 'width:12px; height:12px; color:var(--gold);' }));
       xpCol.appendChild(document.createTextNode(`${c.stats.xp || 0} XP`));
       row.appendChild(xpCol);
       
       // 불꽃(Streak)
-      const streakCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:#991b1b; display:flex; align-items:center; gap:2px; justify-content:center;' });
+      const streakCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--red); display:flex; align-items:center; gap:2px; justify-content:center;' });
       if ((c.stats.streak || 0) > 0) {
-        streakCol.appendChild(el('i', { 'data-lucide': 'zap', style: 'width:12px; height:12px; color:#ef4444; fill:#ef4444;' }));
+        streakCol.appendChild(el('i', { 'data-lucide': 'zap', style: 'width:12px; height:12px; color:var(--danger); fill:var(--danger);' }));
         streakCol.appendChild(document.createTextNode(`${c.stats.streak}일`));
       } else {
         streakCol.appendChild(document.createTextNode('-'));
@@ -246,7 +246,7 @@ function renderStudentUnit() {
   
   const descEl = el('p', { class: 'text-muted', style: 'margin-bottom:14px; display:flex; align-items:center; gap:4px' });
   descEl.appendChild(document.createTextNode('활동을 선택하세요. 게임마다 최고 점수가 기록됩니다 '));
-  descEl.appendChild(el('i', { 'data-lucide': 'trophy', style: 'width:14px; height:14px; color:#f59e0b;' }));
+  descEl.appendChild(el('i', { 'data-lucide': 'trophy', style: 'width:14px; height:14px; color:var(--gold);' }));
   panel.appendChild(descEl);
 
   if (unit.vocabulary.length > 0) {
@@ -436,7 +436,7 @@ function renderStudentActivity() {
   gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
   if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `🔥 ${state.game.combo}x`));
   if (state.currentStudent) {
-    gh.appendChild(el('div', { style: 'background:#ede9fe; color:#5b21b6; border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${state.currentStudent}`));
+    gh.appendChild(el('div', { style: 'background:var(--lavender); color:var(--lavender-ink); border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${state.currentStudent}`));
   }
   root.appendChild(gh);
 
@@ -776,7 +776,7 @@ function drawSVGLine(leftEl, rightEl, isPermanent) {
   const line = document.createElementNS(ns, 'line');
   line.setAttribute('x1', x1); line.setAttribute('y1', y1);
   line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-  line.setAttribute('stroke', isPermanent ? '#10b981' : '#f59e0b');
+  line.setAttribute('stroke', isPermanent ? '#3f8065' : '#d9a514');
   line.setAttribute('stroke-width', isPermanent ? '3' : '2');
   if (!isPermanent) line.setAttribute('stroke-dasharray', '5');
   line.setAttribute('stroke-linecap', 'round');
@@ -809,7 +809,7 @@ function renderDictationGame() {
   inputEl.autocomplete = 'off';
 
   if (g.revealed) {
-    inputEl.style.borderColor = g.lastCorrect ? '#10b981' : '#f43f5e';
+    inputEl.style.borderColor = g.lastCorrect ? 'var(--green)' : 'var(--danger)';
     inputEl.disabled = true;
   }
 
@@ -821,7 +821,7 @@ function renderDictationGame() {
 
   // 정답/오답 후 다음 버튼
   if (g.revealed) {
-    const ans = el('div', { style: `margin-top:14px; padding:12px; border-radius:10px; background:${g.lastCorrect ? '#d1fae5' : '#fee2e2'}; text-align:center; font-weight:600` },
+    const ans = el('div', { style: `margin-top:14px; padding:12px; border-radius:10px; background:${g.lastCorrect ? 'var(--green-soft)' : 'var(--red-soft)'}; text-align:center; font-weight:600` },
       g.lastCorrect ? '✅ 정답!' : `❌ 정답: ${card.word}`);
     root.appendChild(ans);
     const nextBtn = el('button', { class: 'btn btn-primary btn-block', style: 'margin-top:12px', onClick: () => {
@@ -1052,9 +1052,9 @@ function renderStudentResult() {
   const iconWrapper = el('div', { class: 'icon', style: 'margin-bottom:14px; display:flex; justify-content:center; align-items:center;' });
   let iconName = 'frown';
   let iconColor = 'var(--muted)';
-  if (g.finalStars >= 3) { iconName = 'trophy'; iconColor = '#f59e0b'; }
-  else if (g.finalStars >= 2) { iconName = 'award'; iconColor = '#4f46e5'; }
-  else if (g.finalStars >= 1) { iconName = 'medal'; iconColor = '#10b981'; }
+  if (g.finalStars >= 3) { iconName = 'trophy'; iconColor = 'var(--gold)'; }
+  else if (g.finalStars >= 2) { iconName = 'award'; iconColor = 'var(--primary)'; }
+  else if (g.finalStars >= 1) { iconName = 'medal'; iconColor = 'var(--green)'; }
   
   iconWrapper.appendChild(el('i', { 'data-lucide': iconName, style: `width:64px; height:64px; color:${iconColor};` }));
   card.appendChild(iconWrapper);
@@ -1069,7 +1069,7 @@ function renderStudentResult() {
     stars.appendChild(el('i', {
       'data-lucide': 'star',
       class: isFilled ? 'filled' : 'empty',
-      style: `width:32px; height:32px; ${isFilled ? 'fill:var(--accent); color:var(--accent);' : 'fill:transparent; color:#cbd5e1;'}`
+      style: `width:32px; height:32px; ${isFilled ? 'fill:var(--accent); color:var(--accent);' : 'fill:transparent; color:var(--line-strong);'}`
     }));
   }
   card.appendChild(stars);
@@ -1084,7 +1084,7 @@ function renderStudentResult() {
 
   (g.newBadges || []).forEach(b => {
     const badgeDiv = el('div', { class: 'badge-earned', style: 'display:flex; align-items:center; justify-content:center; gap:6px; margin: 14px 0;' });
-    badgeDiv.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:#92400e;' }));
+    badgeDiv.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:var(--accent-ink);' }));
     badgeDiv.appendChild(document.createTextNode(b.name));
     card.appendChild(badgeDiv);
   });

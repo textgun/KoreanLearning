@@ -103,7 +103,7 @@ function renderTopbar() {
     // 로그인 유저 이름 (학생 학습 중에는 교사 이름을 노출하지 않는다)
     if (!inStudentMode) {
       const icon = state.currentUser.isAdmin ? 'crown' : 'book-open';
-      statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:#e0e7ff; color:#3730a3; border-color:#c7d2fe' }, [
+      statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:var(--primary-soft); color:var(--primary-dark); border-color:var(--green-line)' }, [
         el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
         state.currentUser.name
       ]));
@@ -187,7 +187,7 @@ function showApiKeyModal() {
       const hasK = !!getApiKey(code);
       const tab = el('button', {
         class: 'btn btn-sm',
-        style: `padding:10px 4px; line-height:1.3; white-space:pre-line; background:${isActive ? 'var(--primary)' : '#f1f5f9'}; color:${isActive ? '#fff' : '#374151'}; ${hasK ? 'outline:2px solid #10b981; outline-offset:1px' : ''}`,
+        style: `padding:10px 4px; line-height:1.3; white-space:pre-line; background:${isActive ? 'var(--primary)' : 'var(--surface-2)'}; color:${isActive ? '#fff' : 'var(--text)'}; ${hasK ? 'outline:2px solid var(--green); outline-offset:1px' : ''}`,
         onClick: () => { selectedProvider = code; renderModal(); }
       });
       tab.appendChild(el('i', { 'data-lucide': info.icon, style: 'display:block; margin:0 auto 4px; width:18px; height:18px;' }));
@@ -201,9 +201,9 @@ function showApiKeyModal() {
     const currentModel = getModel(selectedProvider);
 
     // 안내 문구
-    const desc = el('p', { style: 'color:#64748b; font-size:0.88rem; margin-bottom:8px; line-height:1.5' });
+    const desc = el('p', { style: 'color:var(--muted); font-size:0.88rem; margin-bottom:8px; line-height:1.5' });
     desc.textContent = 'API 키는 이 기기의 localStorage에만 저장되며 외부로 전송되지 않습니다.';
-    const warn = el('p', { style: 'color:#92400e; background:#fef3c7; border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:12px; line-height:1.5' });
+    const warn = el('p', { style: 'color:var(--accent-ink); background:var(--accent-soft); border-radius:6px; padding:8px 10px; font-size:0.82rem; margin-bottom:12px; line-height:1.5' });
     warn.textContent = '⚠️ 공용 PC·공유 브라우저에서는 키가 노출될 수 있습니다. 수업 후 반드시 삭제하세요.';
     modal.appendChild(desc);
     modal.appendChild(warn);
