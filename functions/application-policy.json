@@ -1,6 +1,7 @@
 {
   "version": "2026-10-30",
   "acceptingApplications": false,
+  "statusLookupOpen": false,
   "operatorName": "말이음 운영팀",
   "contactEmail": "piction825@gmail.com",
   "notificationEmail": "piction825@gmail.com",

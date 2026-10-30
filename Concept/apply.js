@@ -17,12 +17,17 @@ const fields = [
 let currentStep = 0;
 let applicationClient = null;
 let submitting = false;
+let accountVersion = 0;
 const submissionStatus = document.querySelector('#submission-status');
 const isOpen = () => applicationClient?.policy.acceptingApplications === true;
+// 모집 종료 뒤에도 결과 조회는 열어 두되, 첫 모집 전에는 계정 패널을 보이지 않는다.
+const lookupOpen = () => isOpen() || applicationClient?.policy.statusLookupOpen === true;
 const statusNames = { pending: '심사 대기', hold: '보류', approved: '승인', rejected: '반려' };
 
 async function updateAccount() {
   const user = applicationClient.auth.currentUser;
+  const version = accountVersion;
+  submissionStatus.textContent = '';
   document.querySelector('#account-credentials').hidden = !!user;
   document.querySelector('#account-signed-in').hidden = !user;
   document.querySelector('#account-status').textContent = user ? `${user.email} · ${user.emailVerified ? '인증 완료' : '이메일 인증 필요'}` : '로그인하거나 새 계정을 만들어 주세요.';
@@ -30,19 +35,31 @@ async function updateAccount() {
   if (user) {
     document.querySelector('#teacher-email').value = user.email;
     const own = await applicationClient.call('getTeacherApplication');
+    if (version !== accountVersion || applicationClient.auth.currentUser?.uid !== user.uid) return;
     if (own) submissionStatus.textContent = `신청 상태: ${statusNames[own.status]}${own.reviewMessage ? ' · ' + own.reviewMessage : ''}`;
+    else submissionStatus.textContent = '접수된 신청이 없습니다.';
   } else submissionStatus.textContent = '';
 }
 if (typeof applicationReady !== 'undefined') applicationReady.then(async client => {
   applicationClient = client;
-  if (!isOpen()) return;
+  if (!lookupOpen()) return;
+  document.querySelector('#account-panel').hidden = false;
+  document.querySelector('#account-create').hidden = !isOpen();
+  document.querySelector('#account-consent').closest('label').hidden = !isOpen();
+  client.auth.onAuthStateChanged(() => {
+    const version = ++accountVersion;
+    updateAccount().catch(() => { if (version === accountVersion) submissionStatus.textContent = '신청 상태를 불러오지 못했습니다. 다시 확인해 주세요.'; });
+  });
+  if (!isOpen()) {
+    document.querySelector('#account-title').textContent = '기존 신청 결과 확인';
+    document.querySelector('#account-panel .field-hint').textContent = '모집이 종료되어도 기존 계정으로 로그인해 심사 결과를 확인할 수 있습니다.';
+    return;
+  }
   document.querySelector('.demo-badge').textContent = '강사 모집 중';
   document.querySelector('.demo-note p').textContent = '만 18세 이상이면 지원할 수 있어요. 자격증은 필수가 아니며, 한국어 설명 능력과 자기소개를 검토합니다.';
   document.querySelector('#teacher-email').parentElement.querySelector('.field-hint').textContent = '인증한 계정의 이메일로 신청합니다.';
   document.querySelector('.review-note').textContent = '동의 항목과 작성 내용을 확인한 뒤 신청서를 제출해 주세요.';
-  document.querySelector('#account-panel').hidden = false;
   document.querySelector('#application-consents').hidden = false;
-  client.auth.onAuthStateChanged(() => updateAccount().catch(() => { submissionStatus.textContent = '신청 상태를 불러오지 못했습니다. 다시 확인해 주세요.'; }));
 }).catch(() => { submissionStatus.textContent = '접수 연결을 확인할 수 없습니다. 입력 정보는 전송되지 않습니다.'; });
 
 async function accountAction(button, action) {
@@ -52,6 +69,8 @@ async function accountAction(button, action) {
   finally { button.disabled = false; }
 }
 ['login', 'create'].forEach(mode => document.querySelector(`#account-${mode}`).addEventListener('click', event => accountAction(event.currentTarget, async () => {
+  if (applicationClient.auth.currentUser) return;
+  if (mode === 'create' && !isOpen()) return;
   const email = document.querySelector('#account-email').value.trim();
   const password = document.querySelector('#account-password').value;
   if (mode === 'create') {
