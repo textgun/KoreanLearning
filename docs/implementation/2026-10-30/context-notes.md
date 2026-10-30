@@ -22,4 +22,4 @@
 3. piction825@gmail.com에 2단계 인증을 켜고 Gmail 앱 비밀번호를 만든 뒤 `npx firebase functions:secrets:set SMTP_PASSWORD --project korean-learning-fdaff`로 등록한다.
 4. 운영 규칙 확인 후 배포. `npx firebase deploy --only firestore:rules,functions:teacher-applications --project korean-learning-fdaff`. 규칙 배포는 운영 규칙을 로컬 firestore.rules로 덮어쓰므로, 콘솔의 현재 규칙이 로컬과 같은지(신규 teacherApplications 블록 제외) 먼저 비교한다.
 5. Firebase 데이터 위치·국외 이전 등 전체 개인정보처리방침을 확인해 privacy.html을 보완한다.
-6. functions/application-policy.json의 acceptingApplications를 true로 바꾸고 함수 재배포와 GitHub Pages 배포(push)를 함께 한다. 테스트 계정으로 가입·인증·제출·메일 수신·관리자 승인·기존 앱 로그인까지 확인한다.
+6. functions/application-policy.json의 acceptingApplications와 statusLookupOpen을 true로 바꾸고(모집 종료 때는 acceptingApplications만 false) 함수 재배포와 GitHub Pages 배포(push)를 함께 한다. 테스트 계정으로 가입·인증·제출·메일 수신·관리자 승인·기존 앱 로그인까지 확인한다.
