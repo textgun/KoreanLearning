@@ -634,10 +634,6 @@ label {
   align-items: center;
 }
 
-.student-grammar-panel {
-  border-top: 3px solid var(--primary);
-}
-
 .student-grammar-card {
   margin-bottom: 10px;
   padding: 16px 18px;
@@ -749,10 +745,14 @@ label {
   gap: 12px;
 }
 
+/* 학습 활동 카드. 랜딩의 기능 카드처럼 왼쪽 정렬에 색 아이콘·설명·최고 점수 칩을 둔다 */
 .activity-tile {
-  min-height: 142px;
-  padding: 18px 14px;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 150px;
+  padding: 18px 16px;
+  text-align: left;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -766,45 +766,48 @@ label {
   transform: translateY(-4px);
 }
 
-.activity-tile .icon {
-  margin-bottom: 8px;
-  font-size: 2.25rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.act-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 14px;
+  border-radius: 14px;
 }
 
-.activity-tile .icon i {
-  width: 32px;
-  height: 32px;
-  color: var(--primary);
+.act-icon [data-lucide] {
+  width: 24px;
+  height: 24px;
+  color: var(--ink);
 }
+
+.activity-tile.vocab .act-icon { background: var(--green-soft); }
+.activity-tile.grammar .act-icon { background: var(--lavender); }
+.activity-tile.pdfquiz .act-icon { background: var(--yellow-soft); }
 
 .activity-tile .name {
-  font-size: 1rem;
+  font-size: 1.02rem;
   font-weight: 800;
 }
 
+.act-desc {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .activity-tile .best {
-  margin-top: 5px;
+  margin-top: auto;
+  padding: 3px 10px;
   color: var(--accent-ink);
-  font-size: 0.86rem;
-  font-weight: 760;
+  background: var(--yellow-soft);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
-.activity-tile.vocab {
-  background: #f4f8f3;
-  border-color: var(--green-line);
-}
-
-.activity-tile.grammar {
-  background: #f7f4fc;
-  border-color: #d6cdee;
-}
-
-.activity-tile.pdfquiz {
-  background: #fff8e3;
-  border-color: var(--yellow-line);
+.activity-tile .act-desc + .best {
+  margin-top: 12px;
 }
 
 .activity-tile.disabled {
@@ -1861,4 +1864,153 @@ label {
   .leader-rank { grid-row: 1 / 3; }
   .leader-xp { grid-column: 2; text-align: left; }
   .leader-streak { grid-column: 3; text-align: right; }
+}
+
+/* =====================================================
+   말이음 레이아웃: 단원·학습 활동·결과
+   ===================================================== */
+.page-head .back-btn {
+  margin-left: -12px;
+}
+
+.activity-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 22px 0 12px;
+}
+
+.panel > .eyebrow + .activity-section {
+  margin-top: 4px;
+}
+
+.game-title {
+  color: var(--ink);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.game-student {
+  padding: 4px 14px;
+  color: var(--lavender-ink);
+  background: var(--lavender);
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 단어 이모지는 랜딩의 '가나다' 배지처럼 노란 원 안에 둔다 */
+.quiz-question .quiz-emoji,
+.fc-face .fc-emoji {
+  display: inline-grid;
+  place-items: center;
+  background: var(--yellow-soft);
+  border-radius: 50%;
+}
+
+.quiz-question .quiz-emoji {
+  width: 112px;
+  height: 112px;
+  font-size: 3.4rem;
+}
+
+.fc-face .fc-emoji {
+  width: 150px;
+  height: 150px;
+  font-size: 4.6rem;
+}
+
+/* 보기 앞의 A·B·C·D 배지. 정답 판정이 버튼 글자를 비교하므로 글자는 넣지 않고 CSS로만 그린다 */
+.quiz-options {
+  counter-reset: option;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quiz-option::before {
+  counter-increment: option;
+  content: counter(option, upper-alpha);
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.quiz-option.correct::before {
+  content: '✓';
+  color: #fff;
+  background: var(--green);
+}
+
+.quiz-option.wrong::before {
+  content: '✕';
+  color: #fff;
+  background: var(--danger);
+}
+
+.speak-btn {
+  margin-bottom: 4px;
+}
+
+.so-hint {
+  margin: 0 0 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 1.05rem;
+}
+
+.result-card .eyebrow {
+  margin-bottom: 18px;
+}
+
+.result-icon {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 18px;
+  background: var(--yellow-soft);
+  border-radius: 50%;
+}
+
+.result-card .title {
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (max-width: 500px) {
+  .game-title {
+    display: none;
+  }
+
+  .quiz-question .quiz-emoji {
+    width: 92px;
+    height: 92px;
+    font-size: 2.8rem;
+  }
+
+  .fc-face .fc-emoji {
+    width: 120px;
+    height: 120px;
+    font-size: 3.6rem;
+  }
 }

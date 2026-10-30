@@ -175,15 +175,22 @@ function renderStudentUnit() {
   if (!unit.quizzes) unit.quizzes = [];
   const root = el('div');
 
+  const head = el('div', { class: 'page-head' });
+  head.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'student'; render(); }}, '← 단원 목록'));
+  head.appendChild(el('p', { class: 'eyebrow', style: 'margin-top:14px' }, 'TODAY’S UNIT'));
+  head.appendChild(el('h1', {}, unit.title));
+  const descEl = el('p', { class: 'text-muted' });
+  descEl.appendChild(document.createTextNode('활동을 선택하세요. 게임마다 최고 점수가 기록됩니다 '));
+  descEl.appendChild(el('i', { 'data-lucide': 'trophy', style: 'width:15px; height:15px; color:var(--gold);' }));
+  head.appendChild(descEl);
+  root.appendChild(head);
+
   // 문법 설명 패널 (활동 목록보다 먼저 표시)
   if (unit.grammar.length > 0) {
     const grPanel = el('div', { class: 'panel student-grammar-panel' });
-    
-    const grTitle = el('h3', { style: 'margin-bottom:14px; display:flex; align-items:center; gap:8px' });
-    grTitle.appendChild(el('i', { 'data-lucide': 'book-open', style: 'width:20px; height:20px; color:var(--primary);' }));
-    grTitle.appendChild(document.createTextNode('오늘의 문법'));
-    grPanel.appendChild(grTitle);
-    
+    grPanel.appendChild(el('p', { class: 'eyebrow' }, 'GRAMMAR NOTE'));
+    grPanel.appendChild(el('h3', { style: 'margin-bottom:14px' }, '오늘의 문법'));
+
     unit.grammar.forEach(g => {
       const card = el('div', { class: 'student-grammar-card' });
       card.appendChild(el('div', { class: 'student-grammar-pattern' }, g.pattern));
@@ -206,20 +213,13 @@ function renderStudentUnit() {
   }
 
   const panel = el('div', { class: 'panel' });
-  panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'student'; render(); }}, '← 단원 목록'));
-  panel.appendChild(el('h2', { style: 'margin-top:10px' }, unit.title));
-  
-  const descEl = el('p', { class: 'text-muted', style: 'margin-bottom:14px; display:flex; align-items:center; gap:4px' });
-  descEl.appendChild(document.createTextNode('활동을 선택하세요. 게임마다 최고 점수가 기록됩니다 '));
-  descEl.appendChild(el('i', { 'data-lucide': 'trophy', style: 'width:14px; height:14px; color:var(--gold);' }));
-  panel.appendChild(descEl);
+  panel.appendChild(el('p', { class: 'eyebrow' }, 'LET’S PLAY'));
+  const section = (icon, title) => el('h3', { class: 'activity-section' }, [
+    el('i', { 'data-lucide': icon, style: 'width:18px; height:18px; color:var(--primary);' }), title
+  ]);
 
   if (unit.vocabulary.length > 0) {
-    const vocabTitle = el('h3', { style: 'margin-top:12px; display:flex; align-items:center; gap:6px' });
-    vocabTitle.appendChild(el('i', { 'data-lucide': 'book', style: 'width:18px; height:18px; color:var(--primary);' }));
-    vocabTitle.appendChild(document.createTextNode('어휘'));
-    panel.appendChild(vocabTitle);
-    
+    panel.appendChild(section('book', '어휘'));
     const vg = el('div', { class: 'activity-grid' });
     ['flashcard', 'quiz', 'matching', 'linematch', 'dictation'].forEach(act => {
       if (act !== 'flashcard' && act !== 'dictation' && unit.vocabulary.length < 4) return;
@@ -229,11 +229,7 @@ function renderStudentUnit() {
   }
 
   if (unit.grammar.length > 0) {
-    const grammarTitle = el('h3', { style: 'margin-top:18px; display:flex; align-items:center; gap:6px' });
-    grammarTitle.appendChild(el('i', { 'data-lucide': 'book-open', style: 'width:18px; height:18px; color:var(--primary);' }));
-    grammarTitle.appendChild(document.createTextNode('문법'));
-    panel.appendChild(grammarTitle);
-    
+    panel.appendChild(section('book-open', '문법'));
     const gg = el('div', { class: 'activity-grid' });
     ['fillblank', 'sentorder', 'oxquiz'].forEach(act => {
       gg.appendChild(makeActivityTile(act, unit.id, 'grammar'));
@@ -242,11 +238,7 @@ function renderStudentUnit() {
   }
 
   if (unit.quizzes.length > 0) {
-    const quizTitle = el('h3', { style: 'margin-top:18px; display:flex; align-items:center; gap:6px' });
-    quizTitle.appendChild(el('i', { 'data-lucide': 'file-text', style: 'width:18px; height:18px; color:var(--primary);' }));
-    quizTitle.appendChild(document.createTextNode('학습지 퀴즈'));
-    panel.appendChild(quizTitle);
-    
+    panel.appendChild(section('file-text', '학습지 퀴즈'));
     const qg = el('div', { class: 'activity-grid' });
     qg.appendChild(makeActivityTile('pdfquiz', unit.id, 'pdfquiz'));
     panel.appendChild(qg);
@@ -256,12 +248,16 @@ function renderStudentUnit() {
   return root;
 }
 
+// 활동 카드. 랜딩의 기능 카드처럼 색 아이콘·이름·설명을 두고 최고 점수는 칩으로 붙인다
 function makeActivityTile(act, unitId, cls) {
   const a = ACTIVITIES[act];
   const best = getBestScore(unitId, act);
-  const tile = el('div', { class: `activity-tile ${cls}`, onClick: () => startActivity(act) });
-  tile.innerHTML = `<div class="icon"><i data-lucide="${a.icon}"></i></div><div class="name">${a.name}</div>` + (best > 0 ? `<div class="best">최고 ${best}점</div>` : '');
-  return tile;
+  return el('div', { class: `activity-tile ${cls}`, onClick: () => startActivity(act) }, [
+    el('span', { class: 'act-icon' }, [el('i', { 'data-lucide': a.icon })]),
+    el('div', { class: 'name' }, a.name),
+    el('div', { class: 'act-desc' }, a.desc),
+    best > 0 ? el('div', { class: 'best' }, `최고 ${best}점`) : null
+  ]);
 }
 
 function startActivity(activity) {
@@ -394,6 +390,7 @@ function renderStudentActivity() {
   const root = el('div');
   const gh = el('div', { class: 'game-header' });
   gh.appendChild(el('button', { class: 'back-btn', onClick: exitGame }, '✕ 종료'));
+  gh.appendChild(el('span', { class: 'game-title' }, ACTIVITIES[state.currentActivity].name));
   const progress = el('div', { class: 'game-progress' });
   const pct = state.game.total ? Math.min(100, (state.game.index / state.game.total) * 100) : 0;
   progress.appendChild(el('div', { class: 'game-progress-bar', style: `width:${pct}%` }));
@@ -401,7 +398,7 @@ function renderStudentActivity() {
   gh.appendChild(el('div', { class: 'game-info' }, `${state.game.index}/${state.game.total} · ${state.game.score}점`));
   if (state.game.combo >= 3) gh.appendChild(el('div', { class: 'combo-display' }, `🔥 ${state.game.combo}x`));
   if (state.currentStudent) {
-    gh.appendChild(el('div', { style: 'background:var(--lavender); color:var(--lavender-ink); border-radius:20px; padding:4px 14px; font-weight:700; font-size:0.95rem; margin-top:6px; text-align:center' }, `🧑‍🎓 ${state.currentStudent}`));
+    gh.appendChild(el('div', { class: 'game-student' }, `🧑‍🎓 ${state.currentStudent}`));
   }
   root.appendChild(gh);
 
@@ -758,19 +755,19 @@ function renderDictationGame() {
   const root = el('div');
 
   // 발음 버튼
-  const audioBox = el('div', { style: 'text-align:center; margin-bottom:20px' });
-  const speakBtn = el('button', { class: 'btn btn-primary', style: 'font-size:1.3rem; padding:14px 28px', onClick: () => speakKorean(card.word) }, '🔊 발음 듣기');
+  const audioBox = el('div', { class: 'quiz-question' });
+  const speakBtn = el('button', { class: 'btn btn-primary btn-lg speak-btn', onClick: () => speakKorean(card.word) }, '🔊 발음 듣기');
   audioBox.appendChild(speakBtn);
-  audioBox.appendChild(el('p', { class: 'text-muted', style: 'margin-top:8px; font-size:0.9rem' }, '발음을 듣고 한국어를 받아 적으세요'));
-  root.appendChild(audioBox);
+  audioBox.appendChild(el('p', { class: 'quiz-prompt' }, '발음을 듣고 한국어를 받아 적으세요'));
 
   // 뜻 힌트
   const hint = getTranslation(card.translations);
-  if (hint) root.appendChild(el('p', { style: 'text-align:center; color:var(--muted); font-size:0.95rem; margin-bottom:16px' }, `💡 ${hint}`));
+  if (hint) audioBox.appendChild(el('div', { class: 'quiz-hint' }, `💡 ${hint}`));
+  root.appendChild(audioBox);
 
   // 입력창
   const inputRow = el('div', { style: 'display:flex; gap:8px' });
-  const inputEl = el('input', { type: 'text', id: 'dictation-input', placeholder: '한국어로 입력하세요', style: 'flex:1; font-size:1.1rem; padding:12px 14px; border:2px solid var(--border); border-radius:var(--radius-md); font-family:inherit' });
+  const inputEl = el('input', { type: 'text', id: 'dictation-input', placeholder: '한국어로 입력하세요', style: 'flex:1; font-size:1.1rem; padding:12px 14px; border:2px solid var(--line-strong); border-radius:var(--radius-md); font-family:inherit' });
   inputEl.autocomplete = 'off';
 
   if (g.revealed) {
@@ -871,7 +868,7 @@ function renderSentenceOrderGame() {
   if (!q) { showResult(); return el('div'); }
   if (!g.initialized) { g.bank = shuffle(q.words.map((w, i) => ({ w, i }))); g.placed = []; g.initialized = true; }
   const root = el('div');
-  root.appendChild(el('p', { class: 'quiz-hint', style: 'background:#fff; padding:14px; border-radius:12px; margin-bottom:14px; font-size:1.05rem' }, '💡 ' + q.en));
+  root.appendChild(el('p', { class: 'quiz-hint so-hint' }, '💡 ' + q.en));
 
   const target = el('div', { class: 'so-target' });
   if (g.placed.length === 0) target.appendChild(el('span', { class: 'text-muted' }, '아래 단어를 순서대로 클릭하세요'));
@@ -1014,18 +1011,19 @@ function renderStudentResult() {
   const root = el('div');
   const card = el('div', { class: 'result-card' });
   
-  const iconWrapper = el('div', { class: 'icon', style: 'margin-bottom:14px; display:flex; justify-content:center; align-items:center;' });
+  card.appendChild(el('p', { class: 'eyebrow', style: 'justify-content:center' }, 'YOUR RESULT'));
+  const iconWrapper = el('div', { class: 'result-icon' });
   let iconName = 'frown';
   let iconColor = 'var(--muted)';
   if (g.finalStars >= 3) { iconName = 'trophy'; iconColor = 'var(--gold)'; }
-  else if (g.finalStars >= 2) { iconName = 'award'; iconColor = 'var(--primary)'; }
+  else if (g.finalStars >= 2) { iconName = 'award'; iconColor = 'var(--sky-ink)'; }
   else if (g.finalStars >= 1) { iconName = 'medal'; iconColor = 'var(--green)'; }
   
   iconWrapper.appendChild(el('i', { 'data-lucide': iconName, style: `width:64px; height:64px; color:${iconColor};` }));
   card.appendChild(iconWrapper);
 
   const title = g.finalStars >= 3 ? '완벽해요!' : g.finalStars >= 2 ? '잘했어요!' : g.finalStars >= 1 ? '좋아요!' : '다시 도전!';
-  card.appendChild(el('div', { class: 'title' }, title));
+  card.appendChild(el('div', { class: 'title' }, [el('span', { class: 'underline' }, title)]));
   card.appendChild(el('div', { class: 'text-muted' }, `${ACTIVITIES[g.activity].name} 완료`));
 
   const stars = el('div', { class: 'stars', style: 'display:flex; justify-content:center; gap:8px; margin: 14px 0;' });
@@ -1054,7 +1052,7 @@ function renderStudentResult() {
     card.appendChild(badgeDiv);
   });
 
-  const actions = el('div', { style: 'display:flex; gap:10px; margin-top:14px' });
+  const actions = el('div', { class: 'result-actions' });
   
   const toUnitBtn = el('button', { class: 'btn btn-ghost', style: 'flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px', onClick: () => { state.view = 'student-unit'; render(); } });
   toUnitBtn.appendChild(el('i', { 'data-lucide': 'book', style: 'width:15px; height:15px;' }));
