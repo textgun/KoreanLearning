@@ -22,43 +22,41 @@ function renderLoadingPage() {
 // 로그인 화면에서 선택한 탭. 학생은 코드+PIN, 교사는 이메일+비밀번호
 let _loginTab = 'teacher';
 
-function renderLoginPage() {
-  const root = el('div', { style: 'max-width:420px; margin:60px auto' });
-  const panel = el('div', { class: 'panel' });
+// 로그인·가입 화면 공통 배치. 왼쪽은 랜딩과 같은 안내 문구, 오른쪽은 입력 카드다
+function renderAuthLayout({ eyebrow, title, highlight, intro }, panel) {
+  const root = el('div', { class: 'auth-layout' });
+  const story = el('div', { class: 'auth-story' });
+  story.appendChild(el('p', { class: 'eyebrow' }, eyebrow));
+  story.appendChild(el('h1', {}, [title, el('br'), el('span', { class: 'underline' }, highlight)]));
+  story.appendChild(el('p', { class: 'auth-intro' }, intro));
+  panel.classList.add('auth-card');
+  root.append(story, panel);
+  return root;
+}
 
-  const ttl = el('h2', { style: 'text-align:center; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:8px' });
-  ttl.appendChild(el('i', { 'data-lucide': 'log-in', style: 'width:24px; height:24px; color:var(--primary)' }));
-  ttl.appendChild(document.createTextNode('로그인'));
-  panel.appendChild(ttl);
-  panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; margin-bottom:18px' }, '한국어 학습 도구'));
+function renderLoginPage() {
+  const panel = el('div', { class: 'panel' });
+  panel.appendChild(el('h2', {}, '로그인'));
 
   // 교사 / 학생 탭
-  const tabs = el('div', { style: 'display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:20px' });
+  const tabs = el('div', { class: 'segmented' });
   [['teacher', '선생님', 'book-open'], ['student', '학생', 'graduation-cap']].forEach(([code, label, icon]) => {
-    const active = _loginTab === code;
-    const tab = el('button', {
-      class: 'btn btn-sm',
-      style: `padding:11px 4px; font-weight:700; background:${active ? 'var(--primary)' : 'var(--surface-2)'}; color:${active ? '#fff' : 'var(--muted)'}`,
-      onClick: () => { _loginTab = code; render(); }
-    });
-    tab.appendChild(el('i', { 'data-lucide': icon, style: `margin-right:5px; width:15px; height:15px; vertical-align:middle; color:${active ? '#fff' : 'var(--muted)'};` }));
+    const tab = el('button', { class: _loginTab === code ? 'active' : '', onClick: () => { _loginTab = code; render(); } });
+    tab.appendChild(el('i', { 'data-lucide': icon, style: 'width:16px; height:16px; color:currentColor' }));
     tab.appendChild(document.createTextNode(label));
     tabs.appendChild(tab);
   });
   panel.appendChild(tabs);
 
-  if (_loginTab === 'student') {
-    root.appendChild(renderStudentLoginForm(panel));
-    return root;
-  }
+  const story = _loginTab === 'student'
+    ? { eyebrow: 'READY TO LEARN', title: '오늘도 한 걸음,', highlight: '함께 배워요.', intro: '선생님께 받은 학생 코드와 PIN으로 들어와요.' }
+    : { eyebrow: 'WELCOME BACK', title: '다시 만나서', highlight: '반가워요.', intro: '단원을 준비하고 학생들의 배움을 이어 가요.' };
+  if (_loginTab === 'student') return renderAuthLayout(story, renderStudentLoginForm(panel));
 
-  const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1rem; font-family:inherit; background:var(--surface); box-sizing:border-box;';
-  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: inputStyle + 'margin-bottom:12px' });
-  const pwIn    = el('input', { type: 'password', placeholder: '비밀번호', style: inputStyle + 'margin-bottom:16px' });
-  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '이메일'));
-  panel.appendChild(emailIn);
-  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '비밀번호'));
-  panel.appendChild(pwIn);
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com' });
+  const pwIn    = el('input', { type: 'password', placeholder: '비밀번호' });
+  panel.appendChild(el('div', { class: 'field' }, [el('label', {}, '이메일'), emailIn]));
+  panel.appendChild(el('div', { class: 'field' }, [el('label', {}, '비밀번호'), pwIn]));
 
   const loginBtn = el('button', { class: 'btn btn-primary btn-block btn-lg', onClick: async () => {
     const email = emailIn.value.trim();
@@ -79,27 +77,21 @@ function renderLoginPage() {
   }}, '로그인');
   panel.appendChild(loginBtn);
 
-  const links = el('div', { style: 'display:flex; justify-content:space-between; margin-top:16px; font-size:0.88rem' });
+  const links = el('div', { class: 'auth-links' });
   links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'signup'; render(); } }, '회원가입'));
   links.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onClick: () => { state.view = 'forgot-password'; render(); } }, '비밀번호 찾기'));
   panel.appendChild(links);
 
   pwIn.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
-  root.appendChild(panel);
-  return root;
+  return renderAuthLayout(story, panel);
 }
 
 // 학생 로그인 양식. 선생님이 알려준 코드와 PIN만 입력한다
 function renderStudentLoginForm(panel) {
-  const inputStyle = 'width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:1.05rem; font-family:inherit; background:var(--surface); box-sizing:border-box; letter-spacing:0.06em;';
-
-  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '학생 코드 (Student Code)'));
-  const codeIn = el('input', { type: 'text', placeholder: 'ABCD-2345', autocomplete: 'off', autocapitalize: 'characters', style: inputStyle + 'margin-bottom:12px; text-transform:uppercase' });
-
-  panel.appendChild(codeIn);
-  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, 'PIN (6자리)'));
-  const pinIn = el('input', { type: 'password', inputmode: 'numeric', placeholder: '••••••', autocomplete: 'off', style: inputStyle + 'margin-bottom:16px' });
-  panel.appendChild(pinIn);
+  const codeIn = el('input', { type: 'text', placeholder: 'ABCD-2345', autocomplete: 'off', autocapitalize: 'characters', style: 'letter-spacing:0.06em; text-transform:uppercase' });
+  const pinIn = el('input', { type: 'password', inputmode: 'numeric', placeholder: '••••••', autocomplete: 'off', style: 'letter-spacing:0.06em' });
+  panel.appendChild(el('div', { class: 'field' }, [el('label', {}, '학생 코드 (Student Code)'), codeIn]));
+  panel.appendChild(el('div', { class: 'field' }, [el('label', {}, 'PIN (6자리)'), pinIn]));
 
   const btn = el('button', { class: 'btn btn-primary btn-block btn-lg', onClick: async () => {
     const code = codeIn.value.trim();
@@ -119,41 +111,27 @@ function renderStudentLoginForm(panel) {
   }}, '시작하기');
   panel.appendChild(btn);
 
-  panel.appendChild(el('p', { class: 'text-muted', style: 'font-size:0.85rem; margin-top:14px; line-height:1.6; text-align:center; white-space:pre-line' },
-    '코드와 PIN은 선생님께 받으세요.\n잊어버렸다면 선생님이 다시 발급해 줍니다.'));
+  panel.appendChild(el('p', { class: 'auth-note' }, '코드와 PIN은 선생님께 받으세요.\n잊어버렸다면 선생님이 다시 발급해 줍니다.'));
 
   pinIn.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
   setTimeout(() => codeIn.focus(), 50);
-
-  const wrap = el('div');
-  wrap.appendChild(panel);
-  return wrap;
+  return panel;
 }
 
 /* ---------- 회원가입 ---------- */
 function renderSignupPage() {
-  const root = el('div', { style: 'max-width:480px; margin:40px auto' });
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '회원가입'));
 
-  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
-  ttl.appendChild(el('i', { 'data-lucide': 'user-plus', style: 'width:22px; height:22px; color:var(--primary)' }));
-  ttl.appendChild(document.createTextNode('회원가입'));
-  panel.appendChild(ttl);
+  const f = (label, input) => el('div', { class: 'field' }, [el('label', {}, label), input]);
 
-  const f = (label, input) => {
-    const w = el('div', { style: 'margin-bottom:12px' });
-    w.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, label));
-    w.appendChild(input);
-    return w;
-  };
-
-  const nameIn  = el('input', { type: 'text',     placeholder: '홍길동',             style: 'width:100%' });
-  const phoneIn = el('input', { type: 'tel',      placeholder: '010-0000-0000',     style: 'width:100%' });
-  const emailIn = el('input', { type: 'email',    placeholder: 'example@email.com', style: 'width:100%' });
-  const addrIn  = el('input', { type: 'text',     placeholder: '서울시 강남구 ...',  style: 'width:100%' });
-  const pwIn    = el('input', { type: 'password', placeholder: '6자 이상',          style: 'width:100%' });
-  const pwCfmIn = el('input', { type: 'password', placeholder: '비밀번호 재입력',   style: 'width:100%' });
+  const nameIn  = el('input', { type: 'text',     placeholder: '홍길동' });
+  const phoneIn = el('input', { type: 'tel',      placeholder: '010-0000-0000' });
+  const emailIn = el('input', { type: 'email',    placeholder: 'example@email.com' });
+  const addrIn  = el('input', { type: 'text',     placeholder: '서울시 강남구 ...' });
+  const pwIn    = el('input', { type: 'password', placeholder: '6자 이상' });
+  const pwCfmIn = el('input', { type: 'password', placeholder: '비밀번호 재입력' });
 
   [f('이름 *', nameIn), f('연락처 *', phoneIn), f('이메일 *', emailIn),
    f('주소', addrIn), f('비밀번호 * (6자 이상)', pwIn), f('비밀번호 확인 *', pwCfmIn)]
@@ -203,25 +181,19 @@ function renderSignupPage() {
     }
   }}, '가입하기');
   panel.appendChild(submitBtn);
-  root.appendChild(panel);
-  return root;
+  return renderAuthLayout({ eyebrow: 'JOIN AS A TEACHER', title: '함께 가르칠', highlight: '선생님을 기다려요.',
+    intro: '가입 후 관리자가 승인하면 단원과 학생 관리를 시작할 수 있어요.' }, panel);
 }
 
 /* ---------- 비밀번호 찾기 ---------- */
 function renderForgotPassword() {
-  const root = el('div', { style: 'max-width:420px; margin:60px auto' });
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'login'; render(); } }, '← 로그인'));
-
-  const ttl = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
-  ttl.appendChild(el('i', { 'data-lucide': 'key', style: 'width:22px; height:22px; color:var(--primary)' }));
-  ttl.appendChild(document.createTextNode('비밀번호 찾기'));
-  panel.appendChild(ttl);
+  panel.appendChild(el('h2', { style: 'margin-top:10px' }, '비밀번호 찾기'));
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:20px' }, '가입한 이메일로 비밀번호 재설정 링크를 보내드립니다.'));
 
-  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com', style: 'width:100%; margin-bottom:16px' });
-  panel.appendChild(el('label', { style: 'display:block; font-size:0.88rem; font-weight:600; margin-bottom:4px' }, '이메일'));
-  panel.appendChild(emailIn);
+  const emailIn = el('input', { type: 'email', placeholder: 'example@email.com' });
+  panel.appendChild(el('div', { class: 'field' }, [el('label', {}, '이메일'), emailIn]));
 
   const sendBtn = el('button', { class: 'btn btn-primary btn-block', onClick: async () => {
     const email = emailIn.value.trim();
@@ -243,50 +215,52 @@ function renderForgotPassword() {
     }
   }}, '재설정 이메일 보내기');
   panel.appendChild(sendBtn);
-
-  root.appendChild(panel);
-  return root;
+  return renderAuthLayout({ eyebrow: 'FORGOT PASSWORD', title: '비밀번호를', highlight: '다시 설정해요.',
+    intro: '메일로 받은 링크에서 새 비밀번호를 정하면 바로 로그인할 수 있어요.' }, panel);
 }
 
 /* ---------- 승인 대기 ---------- */
 // 가입했지만 관리자가 아직 승인하지 않은 교사의 화면. 승인 여부는 로그인 때 판정하므로 새로고침으로 다시 확인한다
 function renderTeacherPending() {
-  const root = el('div', { style: 'max-width:440px; margin:60px auto' });
   const panel = el('div', { class: 'panel', style: 'text-align:center' });
   panel.appendChild(el('i', { 'data-lucide': 'hourglass', style: 'width:44px; height:44px; color:var(--primary); display:block; margin:0 auto 14px' }));
   panel.appendChild(el('h2', { style: 'margin-bottom:10px' }, '관리자 승인 대기 중'));
   panel.appendChild(el('p', { class: 'text-muted', style: 'line-height:1.7; margin-bottom:18px; white-space:pre-line' },
     '가입이 완료되었습니다.\n관리자가 승인하면 단원과 학생 관리를 시작할 수 있습니다.'));
   panel.appendChild(el('button', { class: 'btn btn-primary btn-block', onClick: () => location.reload() }, '승인 확인 (새로고침)'));
-  root.appendChild(panel);
-  return root;
+  return renderAuthLayout({ eyebrow: 'ALMOST THERE', title: '첫 수업까지', highlight: '조금만 기다려 주세요.',
+    intro: '승인되면 같은 계정으로 바로 수업을 준비할 수 있어요.' }, panel);
 }
 
 function renderHome() {
   const root = el('div');
 
   const hero = el('div', { class: 'home-hero' });
-  hero.appendChild(el('h1', {}, '한국어 학습 도구'));
-  hero.appendChild(el('p', {}, 'Korean Learning App'));
+  hero.appendChild(el('p', { class: 'eyebrow' }, 'KOREAN LEARNING APP'));
+  hero.appendChild(el('h1', {}, ['한국어 ', el('span', { class: 'underline' }, '학습 도구')]));
+  hero.appendChild(el('p', {}, '단원을 준비하고, 학생과 함께 게임으로 배워요.'));
   root.appendChild(hero);
 
-  // Mode selection
+  // 모드 선택. 랜딩의 기능 카드처럼 색 아이콘·번호·설명·태그로 구성한다
   const grid = el('div', { class: 'mode-grid' });
-  const teacherCard = el('div', { class: 'mode-card', onClick: () => {
-    state.view = 'teacher';
-    render();
-  }});
-  teacherCard.innerHTML = '<i data-lucide="book-open" class="card-icon"></i><h3>교사 모드</h3><p>Teacher Mode</p><p style="font-size:0.9rem; margin-top:8px; color:var(--muted)">단원 관리 · PDF 자동 변환</p>';
-
-  const studentCard = el('div', { class: 'mode-card', onClick: () => { state.view = 'student-select'; render(); }});
-  studentCard.innerHTML = '<i data-lucide="graduation-cap" class="card-icon"></i><h3>학생 모드</h3><p>Student Mode</p><p style="font-size:0.9rem; margin-top:8px; color:var(--muted)">게임으로 한국어 배우기</p>';
-
-  grid.append(teacherCard, studentCard);
+  const modeCard = (num, tone, icon, title, sub, tag, onClick) => el('div', { class: 'mode-card', onClick }, [
+    el('span', { class: `mode-icon ${tone}` }, [el('i', { 'data-lucide': icon })]),
+    el('span', { class: 'mode-num' }, num),
+    el('h3', {}, title),
+    el('p', {}, sub),
+    el('span', { class: 'mode-tag' }, tag),
+    el('span', { class: 'mode-arrow', 'aria-hidden': 'true' }, '→')
+  ]);
+  grid.append(
+    modeCard('01', 'green', 'book-open', '교사 모드', 'Teacher Mode', '단원 관리 · PDF 자동 변환', () => { state.view = 'teacher'; render(); }),
+    modeCard('02', 'coral', 'graduation-cap', '학생 모드', 'Student Mode', '게임으로 한국어 배우기', () => { state.view = 'student-select'; render(); })
+  );
   root.appendChild(grid);
   root.appendChild(renderTeacherDirectory());
 
   return root;
 }
+
 
 
 

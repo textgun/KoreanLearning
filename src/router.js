@@ -73,7 +73,8 @@ function render() {
 
 function renderTopbar() {
   const bar = el('div', { class: 'topbar' });
-  bar.appendChild(el('div', { class: 'logo' }, '한국어 학습'));
+  // 랜딩과 같은 말이음 로고. 앱이라는 것을 작은 글씨로 덧붙인다
+  bar.appendChild(el('div', { class: 'logo' }, [el('span', { class: 'brand-icon', 'aria-hidden': 'true' }, 'ㅁ'), '말이음', el('span', { class: 'brand-sub' }, '학습 도구')]));
   const statsRow = el('div', { class: 'stats-row' });
   const authViews = ['login', 'signup', 'forgot-password'];
   const inStudentMode = !!state.currentStudent;
@@ -103,7 +104,7 @@ function renderTopbar() {
     // 로그인 유저 이름 (학생 학습 중에는 교사 이름을 노출하지 않는다)
     if (!inStudentMode) {
       const icon = state.currentUser.isAdmin ? 'crown' : 'book-open';
-      statsRow.appendChild(el('div', { class: 'stat-chip', style: 'background:var(--primary-soft); color:var(--primary-dark); border-color:var(--green-line)' }, [
+      statsRow.appendChild(el('div', { class: 'stat-chip user' }, [
         el('i', { 'data-lucide': icon, style: 'margin-right:4px; width:14px; height:14px; vertical-align:middle;' }),
         state.currentUser.name
       ]));

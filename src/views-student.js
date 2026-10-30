@@ -31,12 +31,8 @@ function renderStudentSelect() {
   const root = el('div');
   const panel = el('div', { class: 'panel' });
   panel.appendChild(el('button', { class: 'back-btn', onClick: () => { state.view = 'home'; render(); }}, '← 뒤로'));
-  
-  const title = el('h2', { style: 'margin-top:10px; display:flex; align-items:center; gap:8px' });
-  title.appendChild(el('i', { 'data-lucide': 'graduation-cap', style: 'width:24px; height:24px; color:var(--primary);' }));
-  title.appendChild(document.createTextNode('학생 선택'));
-  panel.appendChild(title);
-  
+  panel.appendChild(el('p', { class: 'eyebrow', style: 'margin-top:14px' }, 'WHO IS LEARNING TODAY'));
+  panel.appendChild(el('h2', {}, '학생 선택'));
   panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:18px' }, '이름을 선택하세요. 학습 기록은 개인별로 저장됩니다.'));
 
   // 학습 기록은 이름이 아니라 Firestore 문서 id로 식별한다.
@@ -54,12 +50,12 @@ function renderStudentSelect() {
   if (roster.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '교사 모드 → 학생 명단에서 이름을 추가해주세요.'));
   } else {
-    const grid = el('div', { class: 'mode-grid' });
+    const grid = el('div', { class: 'roster-grid' });
     roster.forEach(s => {
-      const card = el('div', { class: 'mode-card', onClick: () => enterStudent(s, s.name) });
-      card.appendChild(el('i', { 'data-lucide': 'user', class: 'card-icon' }));
-      card.appendChild(el('h3', {}, s.name));
-      grid.appendChild(card);
+      grid.appendChild(el('button', { class: 'roster-card', onClick: () => enterStudent(s, s.name) }, [
+        el('span', { class: 'roster-avatar', 'aria-hidden': 'true' }, s.name.slice(0, 1)),
+        el('span', { class: 'roster-name' }, s.name)
+      ]));
     });
     panel.appendChild(grid);
   }
@@ -69,7 +65,7 @@ function renderStudentSelect() {
     style: 'margin-top:16px; display:flex; align-items:center; justify-content:center; gap:6px',
     onClick: () => enterStudent(null, '게스트')
   });
-  guestBtn.appendChild(el('i', { 'data-lucide': 'user', style: 'width:16px; height:16px;' }));
+  guestBtn.appendChild(el('i', { 'data-lucide': 'user', style: 'width:16px; height:16px; color:currentColor' }));
   guestBtn.appendChild(document.createTextNode('게스트로 시작'));
   panel.appendChild(guestBtn);
 
@@ -82,35 +78,37 @@ function renderStudent() {
   const root = el('div');
   const banner = renderLoadErrorBanner();
   if (banner) root.appendChild(banner);
-  const panel = el('div', { class: 'panel' });
-  
-  const sTitle = el('h2', { style: 'display:flex; align-items:center; gap:8px' });
-  sTitle.appendChild(el('i', { 'data-lucide': 'book', style: 'width:24px; height:24px; color:var(--primary);' }));
-  sTitle.appendChild(document.createTextNode('단원 선택 (Choose a Unit)'));
-  panel.appendChild(sTitle);
-  
-  const lang = getLangInfo();
-  panel.appendChild(el('p', { class: 'text-muted', style: 'margin-bottom:14px' }, `현재 언어: ${lang.flag} ${lang.name} · 변경하려면 상단 ${lang.code.toUpperCase()} 버튼 클릭`));
 
+  const lang = getLangInfo();
+  const head = el('div', { class: 'page-head' });
+  head.appendChild(el('p', { class: 'eyebrow' }, 'CHOOSE A UNIT'));
+  head.appendChild(el('h1', {}, [`${state.currentStudent}님, 오늘은 `, el('span', { class: 'underline' }, '어떤 단원'), '을 배울까요?']));
+  head.appendChild(el('p', { class: 'text-muted' }, `현재 언어: ${lang.flag} ${lang.name} · 변경하려면 상단 ${lang.code.toUpperCase()} 버튼 클릭`));
+  root.appendChild(head);
+
+  const panel = el('div', { class: 'panel' });
   // 관리자 공용 단원 + 담당 교사 단원을 함께 보여준다
   const visibleUnits = allUnits();
   if (visibleUnits.length === 0) {
     panel.appendChild(el('p', { class: 'text-muted', style: 'text-align:center; padding:20px' }, '아직 단원이 없습니다. 교사 모드에서 만들어주세요.'));
   } else {
     // 난이도별로 묶어 보여준다. 번호는 난이도 안에서 다시 1부터 센다
-    groupUnitsByLevel(visibleUnits).forEach(g => {
-      const head = el('div', { style: 'display:flex; align-items:center; gap:8px; margin:18px 0 10px' });
-      head.appendChild(el('i', { 'data-lucide': g.level.icon, style: `width:18px; height:18px; color:${g.level.color};` }));
-      head.appendChild(el('span', { style: `font-weight:800; font-size:1.05rem; color:${g.level.color}` }, g.level.name));
-      head.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
-      panel.appendChild(head);
+    groupUnitsByLevel(visibleUnits).forEach((g, gi) => {
+      const levelHead = el('div', { class: 'level-head', style: gi === 0 ? 'margin-top:0' : '' });
+      levelHead.appendChild(el('span', { class: 'level-pill', style: `color:${g.level.color}; background:${g.level.color}14; border-color:${g.level.color}55` }, [
+        el('i', { 'data-lucide': g.level.icon, style: `width:16px; height:16px; color:${g.level.color};` }),
+        g.level.name
+      ]));
+      levelHead.appendChild(el('div', { style: `flex:1; height:1px; background:${g.level.color}33` }));
+      panel.appendChild(levelHead);
 
       const grid = el('div', { class: 'unit-grid' });
       g.units.forEach((u, i) => {
-        const tile = el('div', { class: 'unit-tile', style: `border-top-color:${g.level.color}`, onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
-        tile.appendChild(el('div', { class: 'num', style: `color:${g.level.color}` }, String(i + 1)));
+        const tile = el('div', { class: 'unit-tile', onClick: () => { state.currentUnitId = u.id; state.view = 'student-unit'; render(); }});
+        tile.appendChild(el('div', { class: 'num', style: `color:${g.level.color}; background:${g.level.color}1a` }, String(i + 1).padStart(2, '0')));
         tile.appendChild(el('div', { class: 'title' }, u.title.replace(/^\d+(?:단원|단)?\s*-?\s*/, '')));
         tile.appendChild(el('div', { class: 'progress' }, `${u.vocabulary.length} 단어 · ${u.grammar.length} 문법 · ${(u.quizzes || []).length} 퀴즈`));
+        tile.appendChild(el('span', { class: 'tile-arrow', 'aria-hidden': 'true' }, '→'));
         grid.appendChild(tile);
       });
       panel.appendChild(grid);
@@ -135,68 +133,35 @@ function renderStudent() {
     // XP 점수 내림차순 정렬
     classmatesStats.sort((a, b) => (b.stats.xp || 0) - (a.stats.xp || 0));
 
-    const leaderPanel = el('div', { class: 'panel', style: 'margin-top:20px; border-top: 4px solid var(--accent);' });
-    
-    const leaderTitle = el('h3', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:12px' });
-    leaderTitle.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:20px; height:20px; color:var(--gold);' }));
+    const leaderPanel = el('div', { class: 'panel leaderboard' });
+    leaderPanel.appendChild(el('p', { class: 'eyebrow' }, 'OUR CLASS'));
     // 원격 학생은 교사 문서를 읽을 수 없어 선생님 이름을 표시하지 않는다
-    leaderTitle.appendChild(document.createTextNode('🏆 우리 반 리더보드'));
-    leaderPanel.appendChild(leaderTitle);
-    
-    const table = el('div', { style: 'display:flex; flex-direction:column; gap:8px; margin-top:10px' });
-    
+    leaderPanel.appendChild(el('h3', {}, '🏆 우리 반 리더보드'));
+
+    const table = el('div', { class: 'leader-list' });
+    const rankIcons = { 1: ['crown', 'var(--gold)'], 2: ['award', 'var(--sky-ink)'], 3: ['medal', 'var(--green)'] };
     classmatesStats.forEach((c, idx) => {
       const isMe = state.currentStudentDoc
         ? c.firestoreId === state.currentStudentDoc.firestoreId
         : c.name === state.currentStudent;
       const rank = idx + 1;
-      
-      const row = el('div', { style: `display:grid; grid-template-columns: 40px 1fr 68px 80px 60px; gap:8px; align-items:center; border:1px solid ${isMe ? 'var(--primary)' : 'rgba(226, 232, 240, 0.8)'}; border-radius:12px; padding:12px 14px; background:${isMe ? 'rgba(79, 70, 229, 0.05)' : 'rgba(255,255,255,0.5)'};` });
-      
-      // 순위 컬럼
-      const rankCol = el('div', { style: 'font-weight:800; font-size:1.1rem; text-align:center; display:flex; justify-content:center; align-items:center;' });
-      if (rank === 1) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'crown', style: 'width:18px; height:18px; color:var(--gold);' }));
-      } else if (rank === 2) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'award', style: 'width:18px; height:18px; color:var(--sky-ink);' }));
-      } else if (rank === 3) {
-        rankCol.appendChild(el('i', { 'data-lucide': 'medal', style: 'width:18px; height:18px; color:var(--green);' }));
-      } else {
-        rankCol.appendChild(document.createTextNode(String(rank)));
-      }
+      const row = el('div', { class: 'leader-row' + (isMe ? ' me' : '') });
+
+      const rankCol = el('div', { class: 'leader-rank' });
+      if (rankIcons[rank]) rankCol.appendChild(el('i', { 'data-lucide': rankIcons[rank][0], style: `width:18px; height:18px; color:${rankIcons[rank][1]};` }));
+      else rankCol.appendChild(document.createTextNode(String(rank)));
       row.appendChild(rankCol);
-      
-      // 이름 및 국적
-      const nameWrap = el('div', { style: `font-weight:${isMe ? '800' : '600'}; font-size:0.95rem; color:${isMe ? 'var(--primary-dark)' : 'var(--text)'}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;` });
-      nameWrap.appendChild(document.createTextNode(c.name));
-      if (c.nationality) {
-        const flag = el('span', { style: 'font-size:0.75rem; color:var(--muted); background:var(--line); padding:1px 6px; border-radius:10px;' }, c.nationality);
-        nameWrap.appendChild(flag);
-      }
+
+      const nameWrap = el('div', { class: 'leader-name' }, c.name);
+      if (c.nationality) nameWrap.appendChild(el('span', { class: 'leader-nat' }, c.nationality));
       row.appendChild(nameWrap);
-      
-      // 레벨
-      row.appendChild(el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--lavender-ink); text-align:center;' }, `Lv.${c.stats.level || 1}`));
-      
-      // XP
-      const xpCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--accent-ink); display:flex; align-items:center; gap:2px; justify-content:center;' });
-      xpCol.appendChild(el('i', { 'data-lucide': 'sparkles', style: 'width:12px; height:12px; color:var(--gold);' }));
-      xpCol.appendChild(document.createTextNode(`${c.stats.xp || 0} XP`));
-      row.appendChild(xpCol);
-      
-      // 불꽃(Streak)
-      const streakCol = el('div', { style: 'font-size:0.85rem; font-weight:700; color:var(--red); display:flex; align-items:center; gap:2px; justify-content:center;' });
-      if ((c.stats.streak || 0) > 0) {
-        streakCol.appendChild(el('i', { 'data-lucide': 'zap', style: 'width:12px; height:12px; color:var(--danger); fill:var(--danger);' }));
-        streakCol.appendChild(document.createTextNode(`${c.stats.streak}일`));
-      } else {
-        streakCol.appendChild(document.createTextNode('-'));
-      }
-      row.appendChild(streakCol);
-      
+
+      row.appendChild(el('div', { class: 'leader-lv' }, `Lv.${c.stats.level || 1}`));
+      row.appendChild(el('div', { class: 'leader-xp' }, `✨ ${c.stats.xp || 0} XP`));
+      row.appendChild(el('div', { class: 'leader-streak' }, (c.stats.streak || 0) > 0 ? `🔥 ${c.stats.streak}일` : '-'));
       table.appendChild(row);
     });
-    
+
     leaderPanel.appendChild(table);
     root.appendChild(leaderPanel);
   }
